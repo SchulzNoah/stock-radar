@@ -66,11 +66,16 @@ def get_nasdaq_tickers() -> List[str]:
         resp    = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         from io import StringIO
+        import numpy as np
         df      = pd.read_csv(StringIO(resp.text), sep='|', skipfooter=1, engine='python')
         tickers = []
-        for t in df['Symbol'].astype(str).tolist():
-            if t and t not in ['Symbol', 'nan', '']:
-                tickers.append(t.strip())
+        for t in df['Symbol'].tolist():
+            # Float/NaN direkt abfangen bevor .strip() aufgerufen wird
+            if isinstance(t, float):
+                continue
+            t_str = str(t).strip()
+            if t_str and t_str not in ['Symbol', 'nan', '']:
+                tickers.append(t_str)
         print(f"✔ {len(tickers)} NASDAQ Tickers geladen.")
         return tickers
     except Exception as e:
