@@ -2,8 +2,8 @@ name: Daily Finance Pipeline
 
 on:
   schedule:
-    - cron: '0 6 * * 1-5'  # 8 Uhr Berliner Zeit (Sommerzeit)
-  workflow_dispatch:         # Manueller Start zum Testen
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   run-pipeline:
@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 360
 
     permissions:
-      contents: write        # Erlaubt dem Bot in dein Repo zu pushen
+      contents: write
 
     steps:
       - name: Repository auschecken
@@ -26,6 +26,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Pipeline ausführen
+        env:
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
         run: python main.py
 
       - name: CSVs zu GitHub pushen
