@@ -10,36 +10,58 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 # --- KONFIGURATION ---
-# ⚠️ Wichtig: Relativer Pfad statt absolutem Windows-Pfad!
-WORKING_DIR = "data"
+WORKING_DIR   = "data"
 os.makedirs(WORKING_DIR, exist_ok=True)
 os.chdir(WORKING_DIR)
 
-MAX_WORKERS   = 4
-PAUSE_MIN     = 0.8
-PAUSE_MAX     = 1.8
+MAX_WORKERS   = 3
+PAUSE_MIN     = 1.0
+PAUSE_MAX     = 2.5
 SAVE_INTERVAL = 100
 
 save_lock    = threading.Lock()
 counter_lock = threading.Lock()
 counter      = {"done": 0, "success": 0, "failed": 0}
 
+# --- PROXY SETUP ---
+# Webshare liefert einen einzelnen Rotating-Endpoint:
+# Jeder Request geht automatisch über eine andere IP!
+
+def get_proxy() -> dict:
+    """
+    Gibt Proxy-Konfiguration zurück.
+    Webshare Rotating Proxy: eine URL, automatisch wechselnde IPs.
+    """
+    username = os.environ.get("PROXY_USERNAME", "")
+    password = os.environ.get("PROXY_PASSWORD", "")
+
+    if not username or not password:
+        print("⚠️ Keine Proxy-Credentials gefunden → ohne Proxy")
+        return {}
+
+    # Webshare Rotating Proxy Endpoint
+    proxy_url = f"http://{username}:{password}@p.webshare.io:80"
+
+    return {
+        "http":  proxy_url,
+        "https": proxy_url,
+    }
+
+PROXY = get_proxy()
+print(f"🔀 Proxy aktiv: {'Ja' if PROXY else 'Nein'}")
+
+
 # --- TICKER RETRIEVAL ---
 
 def get_sp500_tickers() -> List[str]:
-    """
-    Holt S&P500-Ticker direkt von der SEC EDGAR API.
-    Offizielle US-Behörde → immer erreichbar, kein HTML-Parsing nötig.
-    """
+    url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
     try:
-        url     = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
         headers = {"User-Agent": "Mozilla/5.0"}
         resp    = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         from io import StringIO
         df      = pd.read_csv(StringIO(resp.text))
-        tickers = df["Symbol"].astype(str).tolist()
-        tickers = [t.replace(".", "-") for t in tickers]
+        tickers = [t.replace(".", "-") for t in df["Symbol"].astype(str).tolist()]
         print(f"✔ {len(tickers)} S&P 500 Tickers geladen.")
         return tickers
     except Exception as e:
@@ -47,10 +69,6 @@ def get_sp500_tickers() -> List[str]:
         return []
 
 def get_nasdaq_tickers() -> List[str]:
-    """
-    Holt NASDAQ-Ticker direkt von nasdaqtrader.com als CSV.
-    Kein HTML-Parsing nötig → sehr zuverlässig.
-    """
     url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -66,36 +84,87 @@ def get_nasdaq_tickers() -> List[str]:
         print(f"⚠ Fehler NASDAQ: {e}")
         return []
 
+
+# --- FINVIZ MIT PROXY ---
+
 rate_limit_event = threading.Event()
+
+def patch_finviz_session():
+    """
+    Überschreibt die interne requests-Session von finvizfinance
+    mit unserer Proxy-Session → alle Finviz-Requests laufen durch den Proxy.
+    """
+    import finvizfinance.quote as fq
+    import requests
+
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    })
+
+    if PROXY:
+        session.proxies.update(PROXY)
+
+    # finvizfinance intern patchen
+    try:
+        fq.requests = session
+    except Exception:
+        pass
+
+    return session
+
+SESSION = patch_finviz_session()
+
 
 def fetch_single_ticker(ticker: str, today_str: str, retries: int = 3) -> Optional[pd.DataFrame]:
     ticker_clean = ticker.replace(".", "-")
+
     for attempt in range(retries):
         if rate_limit_event.is_set():
-            time.sleep(random.uniform(5, 10))
+            time.sleep(random.uniform(8, 15))
+
         try:
             stock = finvizfinance(ticker_clean)
             data  = stock.ticker_fundament()
+
             if not data:
                 return None
+
             df_temp               = pd.DataFrame([data])
             df_temp["Ticker"]     = ticker
             df_temp["Fetch_Date"] = today_str
+
             time.sleep(random.uniform(PAUSE_MIN, PAUSE_MAX))
             return df_temp
+
         except Exception as e:
             err = str(e)
+
             if "429" in err or "Too Many" in err:
                 rate_limit_event.set()
-                wait = 45 + random.randint(15, 30)
+                wait = 60 + random.randint(20, 40)
                 print(f"  ⏳ Rate-Limit: {ticker} → warte {wait}s...")
                 time.sleep(wait)
                 rate_limit_event.clear()
+
+            elif "403" in err or "blocked" in err.lower():
+                # Geblockt → längere Pause, Proxy wechselt automatisch
+                wait = 30 + random.randint(10, 20)
+                print(f"  🚫 Geblockt: {ticker} → warte {wait}s (Proxy wechselt)...")
+                time.sleep(wait)
+
             elif "404" in err:
                 return None
+
             else:
                 time.sleep(3 + random.randint(1, 4))
+
     return None
+
+
+# --- PARALLELER ABRUF ---
 
 def fetch_and_save_fundamentals(tickers: List[str], base_name: str):
     if not tickers:
@@ -140,6 +209,7 @@ def fetch_and_save_fundamentals(tickers: List[str], base_name: str):
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(process_ticker, t): t for t in remaining}
+
         for future in as_completed(futures):
             ticker = futures[future]
             try:
@@ -172,6 +242,7 @@ def fetch_and_save_fundamentals(tickers: List[str], base_name: str):
     elapsed = time.time() - start_time
     print(f"\n✨ {base_name} fertig in {elapsed/60:.1f} Minuten!")
     counter["done"] = counter["success"] = counter["failed"] = 0
+
 
 # --- MAIN ---
 
