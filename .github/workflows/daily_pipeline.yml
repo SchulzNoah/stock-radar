@@ -2,7 +2,7 @@ name: Daily Finance Pipeline
 
 on:
   schedule:
-    - cron: '0 6 * * 1-5'
+    - cron: '0 6 * * 1-5'   # 8 Uhr Berliner Sommerzeit
   workflow_dispatch:
 
 jobs:
