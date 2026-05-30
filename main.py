@@ -24,14 +24,8 @@ counter_lock = threading.Lock()
 counter      = {"done": 0, "success": 0, "failed": 0}
 
 # --- PROXY SETUP ---
-# Webshare liefert einen einzelnen Rotating-Endpoint:
-# Jeder Request geht automatisch über eine andere IP!
 
 def get_proxy() -> dict:
-    """
-    Gibt Proxy-Konfiguration zurück.
-    Webshare Rotating Proxy: eine URL, automatisch wechselnde IPs.
-    """
     username = os.environ.get("PROXY_USERNAME", "")
     password = os.environ.get("PROXY_PASSWORD", "")
 
@@ -39,17 +33,14 @@ def get_proxy() -> dict:
         print("⚠️ Keine Proxy-Credentials gefunden → ohne Proxy")
         return {}
 
-    # Webshare Rotating Proxy Endpoint
     proxy_url = f"http://{username}:{password}@p.webshare.io:80"
-
+    print(f"🔀 Proxy aktiv: p.webshare.io:80")
     return {
         "http":  proxy_url,
         "https": proxy_url,
     }
 
 PROXY = get_proxy()
-print(f"🔀 Proxy aktiv: {'Ja' if PROXY else 'Nein'}")
-
 
 # --- TICKER RETRIEVAL ---
 
@@ -84,7 +75,6 @@ def get_nasdaq_tickers() -> List[str]:
         print(f"⚠ Fehler NASDAQ: {e}")
         return []
 
-
 # --- FINVIZ MIT PROXY ---
 
 rate_limit_event = threading.Event()
@@ -92,27 +82,16 @@ rate_limit_event = threading.Event()
 def patch_finviz_session():
     """
     Überschreibt die interne requests-Session von finvizfinance
-    mit unserer Proxy-Session → alle Finviz-Requests laufen durch den Proxy.
+    mit unserer Proxy-Session.
     """
-    import finvizfinance.quote as fq
-    import requests
-
     session = requests.Session()
     session.headers.update({
         "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
-
     if PROXY:
         session.proxies.update(PROXY)
-
-    # finvizfinance intern patchen
-    try:
-        fq.requests = session
-    except Exception:
-        pass
-
     return session
 
 SESSION = patch_finviz_session()
@@ -126,6 +105,10 @@ def fetch_single_ticker(ticker: str, today_str: str, retries: int = 3) -> Option
             time.sleep(random.uniform(8, 15))
 
         try:
+            # Session mit Proxy direkt in finvizfinance injizieren
+            import finvizfinance.quote as fq
+            fq.scraper = SESSION
+
             stock = finvizfinance(ticker_clean)
             data  = stock.ticker_fundament()
 
@@ -150,9 +133,8 @@ def fetch_single_ticker(ticker: str, today_str: str, retries: int = 3) -> Option
                 rate_limit_event.clear()
 
             elif "403" in err or "blocked" in err.lower():
-                # Geblockt → längere Pause, Proxy wechselt automatisch
                 wait = 30 + random.randint(10, 20)
-                print(f"  🚫 Geblockt: {ticker} → warte {wait}s (Proxy wechselt)...")
+                print(f"  🚫 Geblockt: {ticker} → warte {wait}s...")
                 time.sleep(wait)
 
             elif "404" in err:
