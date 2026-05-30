@@ -27,11 +27,16 @@ counter      = {"done": 0, "success": 0, "failed": 0}
 # --- TICKER RETRIEVAL ---
 
 def get_sp500_tickers() -> List[str]:
-    url = "https://stockanalysis.com/list/sp-500-stocks/"
+    # Wikipedia ist auf GitHub Actions zuverlässig abrufbar
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     try:
-        resp    = requests.get(url, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp    = requests.get(url, timeout=10, headers=headers)
         resp.raise_for_status()
-        tickers = pd.read_html(resp.text)[0]["Symbol"].astype(str).tolist()
+        tables  = pd.read_html(resp.text)
+        tickers = tables[0]["Symbol"].astype(str).tolist()
+        # Wikipedia verwendet Punkte statt Bindestriche → korrigieren
+        tickers = [t.replace(".", "-") for t in tickers]
         print(f"✔ {len(tickers)} S&P 500 Tickers geladen.")
         return tickers
     except Exception as e:
