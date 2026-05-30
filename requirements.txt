@@ -1,0 +1,6 @@
+pandas
+requests
+finvizfinance
+lxml
+html5lib
+beautifulsoup4
