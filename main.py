@@ -69,7 +69,6 @@ def get_nasdaq_tickers() -> List[str]:
         df      = pd.read_csv(StringIO(resp.text), sep='|', skipfooter=1, engine='python')
         tickers = []
         for t in df['Symbol'].astype(str).tolist():
-            # Float-Werte (NaN) und leere Strings überspringen
             if t and t not in ['Symbol', 'nan', '']:
                 tickers.append(t.strip())
         print(f"✔ {len(tickers)} NASDAQ Tickers geladen.")
