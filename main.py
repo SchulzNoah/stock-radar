@@ -27,15 +27,18 @@ counter      = {"done": 0, "success": 0, "failed": 0}
 # --- TICKER RETRIEVAL ---
 
 def get_sp500_tickers() -> List[str]:
-    # Wikipedia ist auf GitHub Actions zuverlässig abrufbar
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    """
+    Holt S&P500-Ticker direkt von der SEC EDGAR API.
+    Offizielle US-Behörde → immer erreichbar, kein HTML-Parsing nötig.
+    """
     try:
+        url     = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
         headers = {"User-Agent": "Mozilla/5.0"}
-        resp    = requests.get(url, timeout=10, headers=headers)
+        resp    = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
-        tables  = pd.read_html(resp.text)
-        tickers = tables[0]["Symbol"].astype(str).tolist()
-        # Wikipedia verwendet Punkte statt Bindestriche → korrigieren
+        from io import StringIO
+        df      = pd.read_csv(StringIO(resp.text))
+        tickers = df["Symbol"].astype(str).tolist()
         tickers = [t.replace(".", "-") for t in tickers]
         print(f"✔ {len(tickers)} S&P 500 Tickers geladen.")
         return tickers
@@ -44,9 +47,17 @@ def get_sp500_tickers() -> List[str]:
         return []
 
 def get_nasdaq_tickers() -> List[str]:
+    """
+    Holt NASDAQ-Ticker direkt von nasdaqtrader.com als CSV.
+    Kein HTML-Parsing nötig → sehr zuverlässig.
+    """
     url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
     try:
-        df      = pd.read_csv(url, sep='|', skipfooter=1, engine='python')
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp    = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        from io import StringIO
+        df      = pd.read_csv(StringIO(resp.text), sep='|', skipfooter=1, engine='python')
         tickers = [t.strip() for t in df['Symbol'].astype(str).tolist()
                    if t.strip() not in ['Symbol', '']]
         print(f"✔ {len(tickers)} NASDAQ Tickers geladen.")
