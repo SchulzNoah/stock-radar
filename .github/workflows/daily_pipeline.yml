@@ -2,7 +2,7 @@ name: Daily Finance Pipeline
 
 on:
   schedule:
-    - cron: '0 6 * * 1-5'   # 8 Uhr Berliner Sommerzeit
+    - cron: '0 6 * * 1-5'
   workflow_dispatch:
 
 jobs:
@@ -30,6 +30,14 @@ jobs:
           PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
         run: python main.py
+
+      # NEU: Newsletter nach main.py
+      - name: Newsletter versenden
+        env:
+          MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
+        run: python newsletter.py
 
       - name: CSVs zu GitHub pushen
         run: |
