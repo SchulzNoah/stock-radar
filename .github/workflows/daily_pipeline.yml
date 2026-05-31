@@ -1,49 +1,6 @@
-name: Daily Finance Pipeline
-
-on:
-  schedule:
-    - cron: '0 6 * * 1-5'
-  workflow_dispatch:
-
-jobs:
-  run-pipeline:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Repository auschecken
-        uses: actions/checkout@v4
-
-      - name: Python einrichten
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Pakete installieren
-        run: pip install -r requirements.txt
-
-      - name: Pipeline ausführen
-        env:
-          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
-          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
-        run: python main.py
-
-      # NEU: Newsletter nach main.py
-      - name: Newsletter versenden
+- name: Test Mail Connection
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python newsletter.py
-
-      - name: CSVs zu GitHub pushen
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
-          git add data/
-          git diff --staged --quiet || git commit -m "Daily update: $(date +'%Y-%m-%d')"
-          git push
+        run: python test_mail.py
