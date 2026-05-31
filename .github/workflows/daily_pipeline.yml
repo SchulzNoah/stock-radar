@@ -1,6 +1,0 @@
-- name: Test Mail Connection
-        env:
-          MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python test_mail.py

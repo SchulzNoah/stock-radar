@@ -1,0 +1,30 @@
+name: Daily Finance Pipeline - SMTP TEST ONLY
+
+on:
+  workflow_dispatch: # Ermöglicht den manuellen Start über den "Run workflow" Button
+
+jobs:
+  run-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Falls dein Test-Skript Pakete wie pandas nutzt, lassen wir das drin.
+      # Wenn es das ganz schlanke Test-Skript ohne Imports ist, schadet es zumindest nicht.
+      - name: Pakete installieren
+        run: pip install -r requirements.txt
+
+      # 🧪 Der reine SMTP-Verbindungstest
+      - name: E-Mail Verbindung testen
+        env:
+          MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
+        run: python test_mail.py
