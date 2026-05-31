@@ -1,11 +1,17 @@
-name: Daily Finance Pipeline - SMTP TEST ONLY
+name: Daily Finance Pipeline
 
 on:
-  workflow_dispatch: # Ermöglicht den manuellen Start über den "Run workflow" Button
+  schedule:
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
 
 jobs:
-  run-test:
+  run-pipeline:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    permissions:
+      contents: write
 
     steps:
       - name: Repository auschecken
@@ -16,15 +22,28 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Falls dein Test-Skript Pakete wie pandas nutzt, lassen wir das drin.
-      # Wenn es das ganz schlanke Test-Skript ohne Imports ist, schadet es zumindest nicht.
       - name: Pakete installieren
         run: pip install -r requirements.txt
 
-      # 🧪 Der reine SMTP-Verbindungstest
-      - name: E-Mail Verbindung testen
+      - name: Pipeline ausführen
+        env:
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+        run: python main.py
+
+      # NEU: Newsletter nach main.py
+      - name: Newsletter versenden
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python test_mail.py
+        run: python newsletter.py
+
+      - name: CSVs zu GitHub pushen
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add data/
+          git diff --staged --quiet || git commit -m "Daily update: $(date +'%Y-%m-%d')"
+          git push
