@@ -1,0 +1,28 @@
+name: Test Newsletter
+
+on:
+  workflow_dispatch:   # Nur manuell auslösbar
+
+jobs:
+  test-newsletter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Pakete installieren
+        run: pip install -r requirements.txt
+
+      - name: Newsletter versenden
+        env:
+          MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
+        run: python newsletter.py
