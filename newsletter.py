@@ -98,24 +98,27 @@ def fmt_mrd(val, decimals=1):
 # ============================================================
 
 def lade_und_bereite_auf():
-    sp_file = f"{DATA_DIR}/{today_str}_SP500_fundamentals.csv"
-    ns_file = f"{DATA_DIR}/{today_str}_NASDAQ_fundamentals.csv"
+    # Neueste verfügbare Dateien nehmen (unabhängig vom Datum)
+    sp_dateien = sorted(glob.glob(f"{DATA_DIR}/*_SP500_fundamentals.csv"))
+    ns_dateien = sorted(glob.glob(f"{DATA_DIR}/*_NASDAQ_fundamentals.csv"))
 
-    if not os.path.exists(sp_file):
-        dateien = sorted(glob.glob(f"{DATA_DIR}/*_SP500_fundamentals.csv"))
-        sp_file = dateien[-1] if dateien else None
-    if not os.path.exists(ns_file):
-        dateien = sorted(glob.glob(f"{DATA_DIR}/*_NASDAQ_fundamentals.csv"))
-        ns_file = dateien[-1] if dateien else None
+    if not sp_dateien or not ns_dateien:
+        raise FileNotFoundError(f"Keine CSVs in '{DATA_DIR}/' gefunden!")
 
-    if not sp_file or not ns_file:
-        raise FileNotFoundError("Keine Datendateien gefunden!")
+    sp_file = sp_dateien[-1]   # Neueste SP500-Datei
+    ns_file = ns_dateien[-1]   # Neueste NASDAQ-Datei
 
-    print(f"📂 Lade: {sp_file}")
-    print(f"📂 Lade: {ns_file}")
+    print(f"📂 Lade SP500:  {sp_file}")
+    print(f"📂 Lade NASDAQ: {ns_file}")
 
     sp = pd.read_csv(sp_file, dtype=str, low_memory=False)
     ns = pd.read_csv(ns_file, dtype=str, low_memory=False)
+
+    print(f"   SP500:  {len(sp)} Zeilen")
+    print(f"   NASDAQ: {len(ns)} Zeilen")
+
+    if len(sp) < 10 or len(ns) < 10:
+        raise ValueError("CSVs scheinen leer – Pipeline-Fehler?")
 
     sp_only = sp[~sp['Ticker'].isin(ns['Ticker'])]
     df      = pd.concat([ns, sp_only], ignore_index=True)
