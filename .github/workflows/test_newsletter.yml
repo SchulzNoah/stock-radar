@@ -1,12 +1,15 @@
 name: Test Newsletter
 
 on:
-  workflow_dispatch:   # Nur manuell auslösbar
+  workflow_dispatch:
 
 jobs:
   test-newsletter:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    permissions:
+      contents: write
 
     steps:
       - name: Repository auschecken
@@ -20,9 +23,18 @@ jobs:
       - name: Pakete installieren
         run: pip install -r requirements.txt
 
-      - name: Newsletter versenden
+      - name: Newsletter & Dashboard generieren
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
         run: python newsletter.py
+
+      - name: docs/ zu GitHub pushen
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add docs/ data/
+          git diff --staged --quiet || git commit -m "Test newsletter: $(date +'%Y-%m-%d')"
+          git push
