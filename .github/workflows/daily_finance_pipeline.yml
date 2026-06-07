@@ -1,36 +1,52 @@
+# Übergeordneter Name des automatisierten Prozesses in der GitHub-Actions-Oberfläche
 name: Daily Finance Pipeline
 
+# Festlegung der Trigger-Events (Wann springt die Automation an?)
 on:
   schedule:
+    # Automatischer Cron-Trigger: Läuft von Montag bis Freitag jeden Morgen um 06:00 Uhr UTC.
     - cron: '0 6 * * 1-5'
+  
+  # Pipeline kann auch manuell ausgeführt werden
   workflow_dispatch:
 
+# Definition der auszuführenden Jobs
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
+    
+    # Timeout auf 6 Stunden gesetzt, falls Scraping nicht funktioniert
     timeout-minutes: 360
 
+    # Bot darf CSV- und HTML-Dateien in Data-Ordner pushen
     permissions:
       contents: write
 
+    # Pipeline-Steps
     steps:
+      # Schritt 1: Klont den aktuellen Code-Stand des Repositories auf den virtuellen Server.
       - name: Repository auschecken
         uses: actions/checkout@v4
 
+      # Schritt 2: Initialisiert Python 3.11-Umgebung
       - name: Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # Schritt 3: Installiert relevanten Pakete
       - name: Pakete installieren
         run: pip install -r requirements.txt
 
+      # Schritt 4: Fetchen der Daten
+      # Proxy-Zugangsdaten, um IP-Sperren vorzubeugen
       - name: Pipeline ausführen
         env:
           PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
         run: python main.py
 
+      # Schritt 5: Erstellung der Mail und Webseite (Secret Variables = Target-Mails)
       - name: Newsletter & Dashboard generieren
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
@@ -38,11 +54,25 @@ jobs:
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
         run: python newsletter.py
 
+      # Schritt 6: Sicherung der Daten und Webseite
       - name: Alles zu GitHub pushen
         run: |
+          # Konfiguration eines anonymen GitHub-Bots als Urheber des Git-Commits
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Holt eventuell parallel aufgelaufene Änderungen vom Remote-Server,
+          # um Push-Konflikte im laufenden Betrieb sauber via Rebase aufzulösen.
           git pull --rebase origin main
+          
+          # Stagt gezielt die aktualisierten Daten- und Web-Ordner (data/ und docs/)
           git add data/ docs/
+          
+          # Prüft, ob neue Inhalte generiert wurden. Nur wenn tatsächliche Abweichungen 
+          # vorliegen, wird ein neuer Commit mit dem aktuellen Tagesdatum erzeugt.
           git diff --staged --quiet || git commit -m "Daily update: $(date +'%Y-%m-%d')"
+          
+          # Schreibt die Änderungen final zurück in das GitHub-Repository.
+          # Sobald docs/index.html aktualisiert wird, zieht GitHub Pages 
+          # automatisch nach und die Live-Webseite ist auf dem neuesten Stand.
           git push
