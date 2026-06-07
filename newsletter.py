@@ -27,7 +27,7 @@ MONATE_DE = {
     7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"
 }
 datum_de = f"{today.day}. {MONATE_DE[today.month]} {today.year}"
-PAGES_URL = "https://schulznoah.github.io/finance-pipeline/"
+PAGES_URL = "https://schulznoah.github.io/stock-radar/"
 
 WATCHLIST_TICKERS = [
     "AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA",
@@ -257,19 +257,32 @@ def erstelle_mail_html(df):
     n_overbought = int((df['RSI'] > 70).sum())
     n_gesamt     = len(df)
 
+    # Nur positive KGVs für Median verwenden (negative = Verlustjahre → verzerren)
+    df_pos_kgv = df.copy()
+    df_pos_kgv.loc[df_pos_kgv['KGV_Forward'] <= 0, 'KGV_Forward'] = np.nan
+
     sektor_df = (
         df[df['Sektor'].notna() & (df['Sektor'] != 'nan')]
         .groupby('Sektor')
         .agg(
-            Anzahl             = ('Ticker',         'count'),
-            Perf_Monat_Avg     = ('Perf_Monat_Pct', 'mean'),
-            Perf_Jahr_Avg      = ('Perf_Jahr_Pct',  'mean'),
-            KGV_Forward_Median = ('KGV_Forward',    'median'),
+            Anzahl         = ('Ticker',         'count'),
+            Perf_Monat_Avg = ('Perf_Monat_Pct', 'mean'),
+            Perf_Jahr_Avg  = ('Perf_Jahr_Pct',  'mean'),
         )
         .round(2)
-        .sort_values('Perf_Monat_Avg', ascending=False)
         .reset_index()
     )
+
+    # KGV Forward Median separat mit nur positiven Werten berechnen
+    kgv_med = (
+        df_pos_kgv[df_pos_kgv['Sektor'].notna() & (df_pos_kgv['Sektor'] != 'nan')]
+        .groupby('Sektor')['KGV_Forward']
+        .median()
+        .round(1)
+        .rename('KGV_Forward_Median')
+    )
+    sektor_df = sektor_df.merge(kgv_med, on='Sektor', how='left')
+    sektor_df = sektor_df.sort_values('Perf_Monat_Avg', ascending=False).reset_index(drop=True)
 
     def pfc(val):
         try: return '#2DD4A0' if float(val) >= 0 else '#FF5C72'
@@ -956,8 +969,15 @@ function renderKGV() {{
   const vals = kgvData.map(d => +d[col]);
   if(!vals.length) return;
 
-  const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
-  const sorted_vals = [...vals].sort((a,b) => a-b);
+  // Für KGV/PEG: Mittelwert und Median nur über positive Werte
+  // (negative KGVs = Verlustunternehmen → verzerren den Durchschnitt stark)
+  const posMetrics = ['KGV','KGV_Forward','PEG'];
+  const valsForStats = posMetrics.includes(col)
+    ? vals.filter(v => v > 0)
+    : vals;
+  const statN = valsForStats.length || 1;
+  const avg = valsForStats.reduce((a,b) => a+b, 0) / statN;
+  const sorted_vals = [...valsForStats].sort((a,b) => a-b);
   const med = sorted_vals[Math.floor(sorted_vals.length / 2)];
 
   const cv = document.getElementById('kgvC');
@@ -1031,9 +1051,14 @@ function renderKGV() {{
   ctx.textAlign = 'center';
   ctx.fillText(cfg.label, P.l + pw / 2, P.t - 10);
 
+  // Info-Zeile: bei KGV/PEG Hinweis auf positive-only Stats
+  const posMetricsInfo = ['KGV','KGV_Forward','PEG'];
+  const statsNote = posMetricsInfo.includes(col)
+    ? ` | Ø & Median: nur positive Werte (${{valsForStats.length}})`
+    : '';
   ctx.fillStyle = textC; ctx.font = '10px Segoe UI,sans-serif';
   ctx.fillText(
-    `${{kgvData.length}} Unternehmen | ${{sek || 'Alle Sektoren'}} | Klick auf Punkt für Details`,
+    `${{kgvData.length}} Unternehmen | ${{sek || 'Alle Sektoren'}}${{statsNote}} | Klick für Details`,
     P.l + pw / 2, H - 5
   );
 }}
