@@ -1218,20 +1218,37 @@ function selR(tk){{
 }}
 
 function drawRadar(d){{
-  document.getElementById('rw').style.display='block';
-  const sc=+d.Score;
-  const scCol=sc>=70?'#2DD4A0':sc>=45?'#FFB347':'#FF5C72';
-  document.getElementById('rt').textContent=`${{d.Rang}}. ${{d.Unternehmen}} (${{d.Ticker}})`;
-  document.getElementById('rsub').innerHTML=
+  // Erst sichtbar machen, dann im nächsten Frame rendern
+  // (damit der Canvas die korrekte Größe hat)
+  const rw = document.getElementById('rw');
+  rw.style.display = 'block';
+
+  const sc     = +d.Score;
+  const scCol  = sc >= 70 ? '#2DD4A0' : sc >= 45 ? '#FFB347' : '#FF5C72';
+
+  document.getElementById('rt').textContent =
+    `${{d.Rang}}. ${{d.Unternehmen}} (${{d.Ticker}})`;
+  document.getElementById('rsub').innerHTML =
     `Score: <span style="color:${{scCol}};font-weight:700;font-size:20px">${{sc}}/100</span>
      &nbsp;·&nbsp; Rang <strong>${{d.Rang}}</strong> von ${{SD.length}} Unternehmen`;
 
-  const cv=document.getElementById('rc');
-  const ctx=cv.getContext('2d');
-  ctx.clearRect(0,0,cv.width,cv.height);
+  // Kurze Verzögerung damit display:block wirkt bevor Canvas gezeichnet wird
+  requestAnimationFrame(() => _paintRadar(d, sc, scCol));
+}}
 
-  const W=cv.width,H=cv.height;
-  const cx=W/2,cy=H/2+10,R=Math.min(W,H)*0.31;
+function _paintRadar(d, sc, scCol) {{
+  const cv  = document.getElementById('rc');
+  const ctx = cv.getContext('2d');
+
+  // Canvas-Größe dynamisch an Container anpassen
+  const container = cv.parentElement;
+  const size = Math.min(container.offsetWidth || 400, 420);
+  cv.width  = size;
+  cv.height = size;
+  ctx.clearRect(0, 0, size, size);
+
+  const W = size, H = size;
+  const cx = W/2, cy = H/2 + 8, R = Math.min(W,H) * 0.30;
 
   const lbls=[
     'EPS 5J Wachstum','Gewinnmarge','Forward KGV','KGV (trailing)','PEG','Analyst'
