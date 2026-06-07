@@ -436,17 +436,15 @@ def erstelle_dashboard(df):
           'PEG','Analyst_Empfehlung','Analyst_Upside_Pct']]
     )
 
-    plot_df = df[
-        df['KGV'].notna() & df['KGV_Forward'].notna() &
-        df['EPS_naechste_5J_Pct'].notna() & df['Sektor'].notna() &
-        (df['KGV'] > 0) & (df['KGV'] < 150) &
-        (df['KGV_Forward'] > 0) & (df['KGV_Forward'] < 100)
-    ][[
-        'Ticker','Unternehmen','Sektor',
-        'KGV','KGV_Forward',
-        'EPS_naechste_5J_Pct','PEG',
-        'Perf_Monat_Pct','Perf_Jahr_Pct'
-    ]].copy()
+    # DataFrame für das Dotplot-Chart vorbereiten (Sicherstellung aller 6 Metriken)
+    plot_cols = ['Ticker', 'Unternehmen', 'Sektor', 'KGV', 'KGV_Forward', 'PEG', 'EPS_naechste_5J_Pct', 'Perf_Monat_Pct', 'Perf_Jahr_Pct']
+    plot_df = df[df['Sektor'].notna()].copy()
+    
+    # Numerische Werte für Chart absichern (NaNs säubern)
+    for c in ['KGV', 'KGV_Forward', 'PEG', 'EPS_naechste_5J_Pct', 'Perf_Monat_Pct', 'Perf_Jahr_Pct']:
+        plot_df[c] = pd.to_numeric(plot_df[c], errors='coerce')
+        
+    plot_df = plot_df[plot_cols].copy()
 
     score_df      = berechne_score(df)
     sektoren_list = sorted(df['Sektor'].dropna().unique().tolist())
@@ -458,16 +456,7 @@ def erstelle_dashboard(df):
     n_overbought = int((df['RSI'] > 70).sum())
     n_gesamt     = len(df)
 
-    def sgn(v, dec=1):
-        try:
-            n = float(v)
-            s = fmt_de(abs(n), dec, '%')
-            return ('+' if n >= 0 else '−') + s
-        except: return '–'
-
-    avg_color = '#2DD4A0' if avg_perf >= 0 else '#FF5C72'
-
-    # JSON
+    # JSON Serialisierung
     wl_json   = watchlist_df.fillna('').to_json(orient='records')
     qs_json   = quality_df.fillna('').to_json(orient='records')
     pd_json   = plot_df.fillna('').to_json(orient='records')
@@ -480,6 +469,7 @@ def erstelle_dashboard(df):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Noahs Finanzblog 📈 – {datum_de}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root {{
   --bg:      #080C14;
@@ -498,6 +488,7 @@ def erstelle_dashboard(df):
   --neg:     #FF5C72;
   --warn:    #FFB347;
   --th-bg:   #0A1628;
+  --chart-grid: rgba(26, 46, 69, 0.6);
 }}
 html.light {{
   --bg:      #F0F4F8;
@@ -516,98 +507,244 @@ html.light {{
   --neg:     #CC2040;
   --warn:    #C07000;
   --th-bg:   #DDE6F0;
+  --chart-grid: rgba(160, 184, 208, 0.5);
 }}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:980px;margin:0 auto;transition:background .3s,color .3s}}
-/* HEADER */
-.header{{background:linear-gradient(135deg,#0D1B2E,#112240);border:1px solid var(--border2);border-radius:16px;padding:26px 24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}}
+body{{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:1000px;margin:0 auto;transition:background .3s,color .3s}}
+
+/* HEADER & TOGGLE */
+.header{{background:linear-gradient(135deg,#0D1B2E,#112240);border:1px solid var(--border2);border-radius:16px;padding:22px 24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}}
 html.light .header{{background:linear-gradient(135deg,#C8DCF0,#A8C8E8)}}
-.header h1{{font-size:clamp(18px,4vw,28px);font-weight:700;color:var(--text)}}
+.header h1{{font-size:24px;font-weight:700;color:var(--text)}}
 .header h1 span{{color:var(--accent)}}
-.hdt{{color:var(--text3);font-size:13px;margin-top:4px}}
-/* DARK/LIGHT TOGGLE */
-.toggle-wrap{{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)}}
-.toggle{{position:relative;width:44px;height:24px;cursor:pointer}}
-.toggle input{{opacity:0;width:0;height:0}}
-.slider{{position:absolute;inset:0;background:var(--border2);border-radius:24px;transition:.3s}}
-.slider::before{{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:var(--accent);border-radius:50%;transition:.3s}}
-input:checked+.slider{{background:#1E3A5F}}
-input:checked+.slider::before{{transform:translateX(20px)}}
-/* SECTIONS */
+
+.theme-switch-wrapper {{display:flex;align-items:center;gap:8px}}
+.theme-switch {{position:relative;display:inline-block;width:50px;height:26px}}
+.theme-switch input {{opacity:0;width:0;height:0}}
+.slider {{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:var(--border2);transition:.3s;border-radius:34px}}
+.slider:before {{position:absolute;content:"";height:18px;width:18px;left:4px;bottom:4px;background-color:var(--text);transition:.3s;border-radius:50%}}
+input:checked + .slider {{background-color:var(--accent)}}
+input:checked + .slider:before {{transform:translateX(24px)}}
+
+/* SECTIONS & FILTERS */
 .sec{{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}}
-.sec-title{{font-size:17px;font-weight:700;color:var(--accent);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}}
-.sec-sub{{font-size:11px;color:var(--text4);margin-top:-10px;margin-bottom:14px}}
-/* METRICS */
-.mg{{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:4px}}
-.mc{{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px 10px;text-align:center}}
-.mv{{font-size:clamp(15px,3vw,21px);font-weight:700;color:var(--accent);line-height:1.2}}
-.ml{{font-size:10px;color:var(--text4);margin-top:4px}}
-.c-pos{{color:var(--pos)!important}}.c-neg{{color:var(--neg)!important}}
-/* TABLES */
-.tw{{overflow-x:auto;-webkit-overflow-scrolling:touch}}
-table.dt{{width:100%;border-collapse:collapse;font-size:12px;min-width:460px}}
-table.dt th{{background:var(--th-bg);color:var(--accent);padding:9px 8px;text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;transition:background .15s}}
-table.dt th:hover{{background:var(--border)}}
-table.dt th.asc::after{{content:' ▲';color:var(--accent)}}
-table.dt th.desc::after{{content:' ▼';color:var(--accent)}}
-table.dt th:not(.asc):not(.desc)::after{{content:' ⇅';color:var(--text4)}}
-table.dt td{{padding:8px;border-bottom:1px solid var(--border);color:var(--text2);white-space:nowrap;font-size:12px}}
-table.dt tr:hover td{{background:var(--bg3)}}
-.tp{{color:var(--accent);font-weight:700}}.tn{{color:var(--text)}}.ts{{color:var(--text3)}}
-.td-pos{{color:var(--pos);font-weight:600}}.td-neg{{color:var(--neg);font-weight:600}}
-/* PAGINATION */
-.pg{{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px;font-size:12px;flex-wrap:wrap}}
-.pb{{background:var(--bg3);border:1px solid var(--border2);color:var(--text3);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;transition:all .15s}}
-.pb:hover,.pb.active{{background:var(--border2);color:var(--accent);border-color:var(--accent)}}
-.pi{{color:var(--text4);font-size:11px}}
-/* FILTERS */
-.fb{{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;padding:14px;background:var(--bg4);border-radius:8px;border:1px solid var(--border)}}
-.fg{{display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px}}
-.fl{{font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.5px}}
-.fi,.fs{{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 8px;border-radius:6px;font-size:11px;font-family:inherit;width:100%;transition:border-color .2s}}
-.fi:focus,.fs:focus{{outline:none;border-color:var(--accent)}}
-.fr{{background:transparent;border:1px solid var(--border2);color:var(--text4);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;align-self:flex-end;transition:all .15s}}
-.fr:hover{{border-color:var(--accent);color:var(--accent)}}
-/* KGV TOGGLE */
-.kgv-toggle{{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;width:fit-content}}
-.kt-btn{{padding:7px 18px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--bg3);color:var(--text3);transition:all .2s;font-family:inherit}}
-.kt-btn.active{{background:var(--accent);color:#050C18}}
-/* CHART */
-.cc{{position:relative;width:100%;margin-top:8px}}
-canvas{{border-radius:8px;max-width:100%;display:block}}
-.ct{{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:12px;color:var(--text2);display:none}}
-/* SEARCH/RADAR */
-.sw{{position:relative;margin-bottom:14px}}
-.si{{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 14px;border-radius:8px;font-size:13px;font-family:inherit;transition:border-color .2s}}
-.si:focus{{outline:none;border-color:var(--accent)}}
-.al{{position:absolute;top:100%;left:0;right:0;background:var(--bg3);border:1px solid var(--border2);border-top:none;border-radius:0 0 8px 8px;z-index:100;max-height:220px;overflow-y:auto;display:none}}
-.ai{{padding:9px 14px;cursor:pointer;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}}
-.ai:hover{{background:var(--border);color:var(--accent)}}
-.ai-ticker{{color:var(--accent);font-weight:700;margin-right:10px}}
-.ai-score{{color:var(--text4);font-size:10px}}
-#rw{{display:none;margin-top:16px;text-align:center}}
-.rt{{font-size:18px;font-weight:700;color:var(--text)}}
-.rs{{font-size:13px;color:var(--text3);margin-top:4px}}
-/* LEGEND */
-.legend{{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;color:var(--text3)}}
-.legend-item{{display:flex;align-items:center;gap:5px}}
-.legend-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0}}
-/* SCORE INFO */
-.score-info{{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text3);line-height:1.6}}
-.score-info strong{{color:var(--text2)}}
-/* ANALYST INFO */
-.analyst-badge{{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700}}
-/* FOOTER */
-.footer{{text-align:center;color:var(--text5);font-size:11px;margin-top:20px;padding:16px;border-top:1px solid var(--border)}}
-.footer a{{color:var(--accent);text-decoration:none}}
-@media(max-width:600px){{
-  body{{padding:10px}}.header{{padding:16px}}.sec{{padding:14px}}
-  .fb{{flex-direction:column}}.fg{{min-width:100%}}
-  .kgv-toggle{{width:100%}}.kt-btn{{flex:1;text-align:center}}
-}}
+.sec-title{{font-size:17px;font-weight:700;color:var(--accent);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}}
+
+.filter-box {{display:flex;gap:12px;margin-bottom:16px;background:var(--bg4);padding:12px;border-radius:8px;border:1px solid var(--border);align-items:center}}
+.filter-select {{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-size:12px;outline:none}}
+
+/* METRIC TOGGLE GROUP */
+.metric-toggle{{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:16px;background:var(--bg4);padding:6px;border-radius:8px;border:1px solid var(--border)}}
+.mt-btn{{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);border-radius:6px;transition:all .2s}}
+.mt-btn:hover{{background:var(--bg3);color:var(--accent)}}
+.mt-btn.active{{background:var(--accent);color:#080C14}}
+
+/* CHART AREA & TOOLTIP */
+.chart-container {{position:relative;width:100%;height:380px;margin-top:10px}}
+.click-tooltip-panel {{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;margin-top:12px;font-size:13px;display:none;line-height:1.5}}
+.click-tooltip-panel h4 {{color:var(--accent);margin-bottom:6px;font-size:14px}}
 </style>
 </head>
 <body>
+
+<div class="header">
+  <div>
+    <h1>Noahs Finanzblog <span>📈</span></h1>
+    <div style="color:var(--text3);font-size:12px;margin-top:4px;">Interaktives Analyse-Dashboard • Stand: {datum_de}</div>
+  </div>
+  <div class="theme-switch-wrapper">
+    <span style="font-size:12px;color:var(--text3);font-weight:600;">Light Mode</span>
+    <label class="theme-switch">
+      <input type="checkbox" id="theme-toggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-title">🎯 Multi-Metriken Dotplot Radar</div>
+  
+  <div class="filter-box">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Sektor-Filter:</label>
+    <select id="sektorSelect" class="filter-select" onchange="updateChartData()">
+      <option value="ALL">Alle Sektoren anzeigen</option>
+    </select>
+  </div>
+
+  <div class="metric-toggle" id="metricToggleGroup">
+    <button class="mt-btn active" onclick="changeMetric('KGV', this)">KGV (Trailing)</button>
+    <button class="mt-btn" onclick="changeMetric('KGV_Forward', this)">Forward KGV</button>
+    <button class="mt-btn" onclick="changeMetric('PEG', this)">PEG Ratio</button>
+    <button class="mt-btn" onclick="changeMetric('EPS_naechste_5J_Pct', this)">EPS Growth 5J (%)</button>
+    <button class="mt-btn" onclick="changeMetric('Perf_Monat_Pct', this)">Performance 1M (%)</button>
+    <button class="mt-btn" onclick="changeMetric('Perf_Jahr_Pct', this)">Performance 1J (%)</button>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="dotplotChart"></canvas>
+  </div>
+  
+  <div id="clickTooltip" class="click-tooltip-panel"></div>
+</div>
+
+<script>
+// Datenübergabe aus Python Backend
+const rawData = {pd_json};
+const sektoren = {sek_json};
+
+let currentMetric = 'KGV';
+let chartInstance = null;
+
+// Sektor-Dropdown befüllen
+const sekSelect = document.getElementById('sektorSelect');
+sektoren.forEach(s => {{
+    let opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sekSelect.appendChild(opt);
+}});
+
+// Dark/Light Mode Logik
+const toggleSwitch = document.getElementById('theme-toggle');
+toggleSwitch.addEventListener('change', (e) => {{
+    if (e.target.checked) {{
+        document.documentElement.classList.add('light');
+    }} else {{
+        document.documentElement.classList.remove('light');
+    }}
+    if(chartInstance) {{
+        // Gridfarben dynamisch re-evaluieren
+        const style = getComputedStyle(document.documentElement);
+        chartInstance.options.scales.x.grid.color = style.getPropertyValue('--chart-grid').trim();
+        chartInstance.options.scales.y.grid.color = style.getPropertyValue('--chart-grid').trim();
+        chartInstance.options.scales.x.ticks.color = style.getPropertyValue('--text3').trim();
+        chartInstance.options.scales.y.ticks.color = style.getPropertyValue('--text3').trim();
+        chartInstance.update();
+    }}
+}});
+
+function changeMetric(metricKey, element) {{
+    document.querySelectorAll('.mt-btn').forEach(btn => btn.classList.remove('active'));
+    element.classList.add('active');
+    currentMetric = metricKey;
+    
+    // Bestehenden Klick-Tooltip bei Metrikwechsel resetten
+    document.getElementById('clickTooltip').style.display = 'none';
+    
+    updateChartData();
+}}
+
+function updateChartData() {{
+    const selectedSektor = document.getElementById('sektorSelect').value;
+    
+    // Daten filtern & bereinigen
+    let filtered = rawData.filter(d => {{
+        if(selectedSektor !== 'ALL' && d.Sektor !== selectedSektor) return false;
+        return d[currentMetric] !== null && !isNaN(d[currentMetric]);
+    }});
+
+    // Extremwert-Schutz für stabilen Plot-Inhalt
+    if (currentMetric === 'KGV') filtered = filtered.filter(d => d.KGV > 0 && d.KGV < 120);
+    if (currentMetric === 'KGV_Forward') filtered = filtered.filter(d => d.KGV_Forward > 0 && d.KGV_Forward < 90);
+    if (currentMetric === 'PEG') filtered = filtered.filter(d => d.PEG >= 0 && d.PEG < 6);
+
+    // Sortierung nach Ticker für konsistente X-Achsen-Zuordnung
+    filtered.sort((a, b) => a.Ticker.localeCompare(b.Ticker));
+
+    const labels = filtered.map(d => d.Ticker);
+    const dataValues = filtered.map(d => d[currentMetric]);
+    
+    // Tooltip-Zusatzdaten mitsenden
+    const metaData = filtered.map(d => ({{
+        name: d.Unternehmen,
+        sektor: d.Sektor,
+        kgv: d.KGV,
+        fwdKgv: d.KGV_Forward,
+        peg: d.PEG,
+        eps5: d.EPS_naechste_5J_Pct,
+        p1m: d.Perf_Monat_Pct,
+        p1j: d.Perf_Jahr_Pct
+    }}));
+
+    const style = getComputedStyle(document.documentElement);
+    const accentColor = style.getPropertyValue('--accent').trim() || '#4DB8FF';
+    const gridColor = style.getPropertyValue('--chart-grid').trim() || 'rgba(26, 46, 69, 0.6)';
+    const textColor = style.getPropertyValue('--text3').trim() || '#8AACC8';
+
+    if (chartInstance) {{
+        chartInstance.destroy();
+    }}
+
+    const ctx = document.getElementById('dotplotChart').getContext('2d');
+    chartInstance = new Chart(ctx, {{
+        type: 'line', // Line-Typ mit showLine: false emuliert einen perfekten, performanten Dotplot
+        data: {{
+            labels: labels,
+            datasets: [{{
+                label: currentMetric.replace('_', ' '),
+                data: dataValues,
+                backgroundColor: accentColor,
+                borderColor: accentColor,
+                borderWidth: 0,
+                pointRadius: 6,
+                pointHoverRadius: 9,
+                showLine: false, // Deaktiviert die Verbindungslinie -> Dotplot
+                meta: metaData
+            }}]
+        }},
+        options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            events: ['click', 'mousemove'], // Mousemove für Cursor-Wechsel, Click für Verriegelung
+            onHover: (event, chartElement) => {{
+                event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default';
+            }},
+            onClick: (event, chartElements) => {{
+                if (!chartElements.length) return;
+                const index = chartElements[0].index;
+                const ticker = labels[index];
+                const meta = metaData[index];
+                
+                const panel = document.getElementById('clickTooltip');
+                panel.innerHTML = `
+                    <h4>📊 ${{ticker}} — ${{meta.name}}</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+                        <div><b>Sektor:</b> ${{meta.sektor}}</div>
+                        <div><b>KGV (Trailing):</b> ${{meta.kgv ? meta.kgv.toFixed(1) : '–'}}</div>
+                        <div><b>Forward KGV:</b> ${{meta.fwdKgv ? meta.fwdKgv.toFixed(1) : '–'}}</div>
+                        <div><b>PEG Ratio:</b> ${{meta.peg ? meta.peg.toFixed(2) : '–'}}</div>
+                        <div><b>EPS Growth 5J:</b> ${{meta.eps5 ? meta.eps5.toFixed(1) + '%' : '–'}}</div>
+                        <div><b>Perf. 1M:</b> <span class="${{meta.p1m >= 0 ? 'c-pos' : 'c-neg'}}">${{meta.p1m ? meta.p1m.toFixed(1) + '%' : '–'}}</span></div>
+                        <div><b>Perf. 1J:</b> <span class="${{meta.p1j >= 0 ? 'c-pos' : 'c-neg'}}">${{meta.p1j ? meta.p1j.toFixed(1) + '%' : '–'}}</span></div>
+                    </div>
+                `;
+                panel.style.display = 'block';
+            }},
+            plugins: {{
+                legend: {{ display: false }},
+                tooltip: {{ enabled: false }} // Standard Hover-Tooltip deaktiviert zugunsten des Klick-Panels
+            }},
+            scales: {{
+                x: {{
+                    grid: {{ color: gridColor }},
+                    ticks: {{ color: textColor, font: {{ size: 10 }} }}
+                }},
+                y: {{
+                    grid: {{ color: gridColor }},
+                    ticks: {{ color: textColor }}
+                }}
+            }}
+        }}
+    }});
+}}
+
+// Initial-Aufruf beim Laden der Applikation
+document.addEventListener('DOMContentLoaded', () => {{
+    updateChartData();
+}});
+</script>
+
+</body>
+</html>
 
 <!-- HEADER -->
 <div class="header">
