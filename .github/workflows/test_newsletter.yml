@@ -1,15 +1,11 @@
-name: Test Newsletter
+name: Test Newsletter & Dashboard
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Nur manuelles Triggern für Testzwecke
 
 jobs:
-  test-newsletter:
+  test-run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    permissions:
-      contents: write
 
     steps:
       - name: Repository auschecken
@@ -23,20 +19,35 @@ jobs:
       - name: Pakete installieren
         run: pip install -r requirements.txt
 
-      - name: Newsletter & Dashboard generieren
+      - name: Testlauf ausführen
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python newsletter.py
+        run: python newsletter.py # Führt das Skript im Testmodus aus (erzeugt Artefakte für docs/)
 
-      - name: docs/ zu GitHub pushen
+      - name: Änderungen committen
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/ data/
-          git stash
+          
+          # 1. Lokale Änderungen (Dashboard-Generierung) sicher stashen (inklusive neuer, untrackter Files)
+          git stash --include-untracked
+          
+          # 2. Remote-Updates holen und lokal draufrebasen
           git pull --rebase origin main
-          git stash pop
-          git diff --staged --quiet || git commit -m "Test newsletter: $(date +'%Y-%m-%d')"
-          git push
+          
+          # 3. Das frisch generierte Dashboard und die Testdaten wieder zurückholen
+          git stash pop || echo "Kein Stash zum Zurückspielen vorhanden oder Konflikt automatisch gelöst"
+          
+          # 4. Jetzt erst alle Änderungen für den Commit markieren
+          git add docs/ data/
+          if [ -d "assets" ]; then git add assets/; fi
+          
+          # 5. Saubere Prüfung des Index vor dem Commit
+          if ! git diff --cached --quiet; then
+            git commit -m "Test update: $(date +'%Y-%m-%d %H:%M:%S')"
+            git push origin main
+          else
+            echo "Der Testlauf hat keine visuellen oder datentechnischen Änderungen erzeugt."
+          fi
