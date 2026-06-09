@@ -1162,25 +1162,50 @@ def sende_mail(html):
 # MAIN
 # ============================================================
 if __name__=="__main__":
-    print(f"📧 {datum_de}")
-    df=lade_daten()
+    print(f"📧 Starte Verarbeitung für: {datum_de}")
+    
+    # Falls main.py das Arbeitsverzeichnis verändert hat, arbeiten wir mit absoluten Pfaden
+    root_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+    abs_data_dir = os.path.join(root_dir, DATA_DIR)
+    abs_docs_dir = os.path.join(root_dir, DOCS_DIR)
+    
+    df = lade_daten()
 
-    os.makedirs(DATA_DIR,exist_ok=True)
-    mail=erstelle_mail(df)
-    with open(f"{DATA_DIR}/{today_str}_newsletter.html","w",encoding="utf-8") as f:
-        f.write(mail)
-    print("💾 Mail-HTML gespeichert")
+    # 1. Mail-HTML generieren & im Daten-Archiv sichern
+    os.makedirs(abs_data_dir, exist_ok=True)
+    mail_html = erstelle_mail(df)
+    with open(os.path.join(abs_data_dir, f"{today_str}_newsletter.html"), "w", encoding="utf-8") as f:
+        f.write(mail_html)
+    print("💾 Statisches Mail-HTML im Daten-Archiv gespeichert.")
 
-    os.makedirs(f"{DOCS_DIR}/assets",exist_ok=True)
-    # Logo in docs/assets/ kopieren (falls vorhanden)
-    logo_src="assets/logo.png"  # lokaler Pfad im Repo-Root
-    logo_dst=f"{DOCS_DIR}/assets/logo.png"
-    if os.path.exists(logo_src) and not os.path.exists(logo_dst):
-        shutil.copy(logo_src,logo_dst)
-        print("🖼️  Logo kopiert nach docs/assets/logo.png")
+    # 2. Interaktives Dashboard für GitHub Pages bauen!
+    os.makedirs(abs_docs_dir, exist_ok=True)
+    dashboard_html = erstelle_dashboard(df) # <-- JETZT WIRD DAS INTERAKTIVE JS-DASHBOARD GENERIERT!
+    
+    with open(os.path.join(abs_docs_dir, "index.html"), "w", encoding="utf-8") as f:
+        f.write(dashboard_html)
+    print("🖥️ Interaktives Dashboard für GitHub Pages (docs/index.html) erfolgreich generiert!")
 
-    dash=erstelle_dashboard(df)
-    with open(f"{DOCS_DIR}/index.html","w",encoding="utf-8") as f:
-        f.write(dash)
-    print(f"💾 Dashboard: {DOCS_DIR}/index.html")
-    sende_mail(mail)
+    # 3. Logo in docs/assets/ kopieren
+    os.makedirs(os.path.join(abs_docs_dir, "assets"), exist_ok=True)
+    logo_src = os.path.join(root_dir, "assets", "logo.png")
+    logo_dst = os.path.join(abs_docs_dir, "assets", "logo.png")
+    
+    if os.path.exists(logo_src):
+        shutil.copy2(logo_src, logo_dst)
+        print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopieren.")
+    else:
+        # Falls das Logo direkt im Hauptverzeichnis liegt
+        logo_root_src = os.path.join(root_dir, "logo.png")
+        if os.path.exists(logo_root_src):
+            shutil.copy2(logo_root_src, logo_dst)
+            print("🖼️ Logo aus Root erfolgreich nach docs/assets/logo.png kopiert.")
+        else:
+            print("⚠️ Hinweis: logo.png wurde weder im Hauptverzeichnis noch in /assets gefunden.")
+
+    # 4. Newsletter-E-Mail absenden
+    sende_erfolgreich = sende_mail(mail_html)
+    if sende_erfolgreich:
+        print("🚀 Mail-Versand erfolgreich abgeschlossen.")
+    else:
+        print("❌ Mail-Versand fehlgeschlagen.")
