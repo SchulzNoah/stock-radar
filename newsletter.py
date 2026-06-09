@@ -342,6 +342,8 @@ def erstelle_dashboard(df):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" href="assets/logo.png">
+
 <title>Noahs Finanzblog 📈</title>
 <style>
 :root {
