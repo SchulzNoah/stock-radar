@@ -4,7 +4,7 @@ import smtplib
 import os, re, glob, json, shutil
 from email.mime.multipart import MIMEMultipart
 from email.mime.text      import MIMEText
-from datetime             import datetime
+from datetime             import datetime 
 
 # ============================================================
 # KONFIGURATION
