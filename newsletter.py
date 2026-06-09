@@ -4,7 +4,7 @@ import smtplib
 import os, re, glob, json, shutil
 from email.mime.multipart import MIMEMultipart
 from email.mime.text      import MIMEText
-from datetime             import datetime
+from datetime import datetime
 
 # ============================================================
 # KONFIGURATION
@@ -30,7 +30,7 @@ WATCHLIST_TICKERS = [
 ]
 
 # ============================================================
-# HILFSFUNKTIONEN
+# HILFSFUNKTIONEN ZUR DATENBEREINIGUNG
 # ============================================================
 def pct_zu_num(s):
     return pd.to_numeric(s.astype(str).str.extract(r'(-?[0-9]+\.?[0-9]*)')[0], errors='coerce')
@@ -67,15 +67,15 @@ def fmt(v, d=2, sfx=""):
     except: return "–"
 
 # ============================================================
-# DATEN LADEN
+# DATEN LADEN & PIPELINE
 # ============================================================
 def lade_daten():
     sp_f = sorted(glob.glob(f"{DATA_DIR}/*_SP500_fundamentals.csv"))
     ns_f = sorted(glob.glob(f"{DATA_DIR}/*_NASDAQ_fundamentals.csv"))
-    if not sp_f or not ns_f: raise FileNotFoundError("Keine CSVs!")
+    if not sp_f or not ns_f: raise FileNotFoundError("Keine fundamentalen CSV-Dateien im Ordner gefunden!")
     sp = pd.read_csv(sp_f[-1], dtype=str, low_memory=False)
     ns = pd.read_csv(ns_f[-1], dtype=str, low_memory=False)
-    print(f"SP500: {len(sp)} | NASDAQ: {len(ns)}")
+    print(f"SP500 Datensätze: {len(sp)} | NASDAQ Datensätze: {len(ns)}")
     df = pd.concat([ns, sp[~sp['Ticker'].isin(ns['Ticker'])]], ignore_index=True)
     df = df.rename(columns={
         'Company':'Unternehmen','Sector':'Sektor','Industry':'Branche',
@@ -112,10 +112,10 @@ def lade_daten():
     df['EPS_vergangene_5J_Pct'] = eps_split(df['EPS_vergangene_3_5J'], 1)
     df['Analyst_Upside_Pct']    = ((df['Kursziel']-df['Preis'])/df['Preis']*100).round(2)
     df = df[df['Preis'].notna()&(df['Preis']>0)&df['Unternehmen'].notna()].copy()
-    print(f"Master: {len(df)} Unternehmen"); return df
+    print(f"Master-Dataframe erstellt: {len(df)} gültige Unternehmen"); return df
 
 # ============================================================
-# SCORE
+# SCORING ENGINE
 # ============================================================
 def berechne_score(df):
     s = df[['Ticker','Unternehmen','Sektor','KGV','KGV_Forward',
@@ -147,7 +147,7 @@ def berechne_score(df):
                'PEG','Analyst_Empfehlung']]
 
 # ============================================================
-# STATISCHE MAIL
+# STATISCHER NEWSLETTER (MAIL-GENERIERUNG)
 # ============================================================
 def erstelle_mail(df):
     def pfc(v):
@@ -273,12 +273,10 @@ def erstelle_mail(df):
 </div>
 </div></body></html>"""
 
-
 # ============================================================
-# DASHBOARD – vollständig als raw string (kein f-string im JS)
+# INTERAKTIVE WEBSEITE (DASHBOARD-GENERIERUNG)
 # ============================================================
 def erstelle_dashboard(df):
-    # Daten vorbereiten
     wl_df = df[df['Ticker'].isin(WATCHLIST_TICKERS)].copy()
     wl_df = wl_df.sort_values('Marktkapitalisierung_Mrd', ascending=False)
 
@@ -313,14 +311,12 @@ def erstelle_dashboard(df):
     n_ges       = len(df)
     avg_col     = "#2DD4A0" if avg_perf >= 0 else "#FF5C72"
 
-    # JSON
     wl_json  = wl_df.fillna("").to_json(orient="records")
     qs_json  = qs_df.fillna("").to_json(orient="records")
     pd_json  = pd_df.fillna("").to_json(orient="records")
     sc_json  = sc_df.fillna("").to_json(orient="records")
     sek_json = json.dumps(sek_list)
 
-    # Python-generierte Werte als JS-Block (normaler f-string, kein JS drin)
     data_block = (
         f'const DATUM="{datum_de}";'
         f'const AVG_PERF={avg_perf};'
@@ -336,7 +332,7 @@ def erstelle_dashboard(df):
         f'const SEK={sek_json};'
     )
 
-    # HTML/CSS/JS als reiner raw string – kein {{ }} nötig
+    # HTML/CSS/JS als reiner raw string – alle JavaScript-Klammern sind unberührt!
     html = """<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -437,22 +433,10 @@ table.dt tr:hover td{background:var(--bg3)}
     align-self:flex-end;transition:all .15s;font-family:inherit}
 .fr:hover{border-color:var(--ac);color:var(--ac)}
 
-/* METRIC TOGGLE */
-.mt-wrap{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
-.mt-grp{display:flex;border:1px solid var(--brd2);border-radius:8px;overflow:hidden;flex-wrap:wrap}
-.mt-btn{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border:none;
-        background:var(--bg3);color:var(--tx3);transition:all .2s;font-family:inherit;
-        border-right:1px solid var(--brd2)}
-.mt-btn:last-child{border-right:none}
-.mt-btn.active{background:var(--ac);color:#050C18}
-.mt-btn:hover:not(.active){background:var(--brd);color:var(--tx)}
-
-/* CHART */
-.cc{position:relative;width:100%;margin-top:8px}
-canvas{border-radius:8px;max-width:100%;display:block}
-.ct{background:var(--bg3);border:1px solid var(--brd2);border-radius:8px;
-    padding:10px 14px;margin-top:10px;font-size:12px;color:var(--tx2);display:none;
-    line-height:1.6}
+/* WATCHLIST SPEZIFISCH: LIVE-GRAPH */
+#kgv-plot {
+  min-height: 50px;
+}
 
 /* SEARCH / RADAR */
 .sw{position:relative;margin-bottom:14px}
@@ -491,72 +475,436 @@ canvas{border-radius:8px;max-width:100%;display:block}
   .sec{padding:14px}
   .fb{flex-direction:column}
   .fg{min-width:100%}
-  .mt-grp{width:100%}
-  .mt-btn{flex:1;text-align:center;font-size:10px;padding:6px 8px}
 }
 </style>
 </head>
 <body>
-<script>
-        // Definiert die Ticker deiner Watchlist direkt im JS-Kontext
-        const watchlistTickers = ["AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA","AMD","ASML","VRT","AVGO","TSM","MELI","WDC","SAP","MRVL","MU","AAON","BE"];
-        let stockData = [];
 
-        // HIER IST DIE GEWÜNSCHTE INTERAKTIVE LADE-LOGIK:
-        async function ladeDatenVomServer() {
-            try {
-                // Holt beide CSVs parallel über relative Web-Pfade ab
-                const [resSP500, resNasdaq] = await Promise.all([
-                    fetch('../data/SP500_fundamentals.csv'),
-                    fetch('../data/NASDAQ_fundamentals.csv')
-                ]);
-                
-                let combinedStocks = [];
-                if (resSP500.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resSP500.text()));
-                if (resNasdaq.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resNasdaq.text()));
-                
-                stockData = combinedStocks.filter(stock => stock && stock.Ticker && watchlistTickers.includes(stock.Ticker));
-                console.log("Daten erfolgreich geladen:", stockData);
-                
-                tabelleBauen();
-                diagrammBauen();
-            } catch (error) {
-                console.error("Fehler beim Laden:", error);
-            }
-        }
+<div class="hdr">
+  <div class="hdr-left">
+    <img class="hdr-logo" src="assets/logo.png" alt="Logo" onerror="this.style.display='none'">
+    <div class="hdr-text">
+      <h1>Noahs Finanzblog <span>📈</span></h1>
+      <div class="sub" id="hdr-date">Lade Datum...</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="tgl-wrap">
+      <span>☀️</span>
+      <label class="tgl">
+        <input type="checkbox" id="theme-checkbox" onchange="toggleTheme()">
+        <span class="tgl-slider"></span>
+      </label>
+      <span>🌙</span>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-title">🌍 Marktübersicht</div>
+  <div class="mg">
+    <div class="mc"><div class="mv" id="m-perf">-</div><div class="ml">Ø Perf. 1M</div></div>
+    <div class="mc"><div class="mv" id="m-pos">-</div><div class="ml">Im Plus (1M)</div></div>
+    <div class="mc"><div class="mv" id="m-over">-</div><div class="ml">Überverkauft (RSI&lt;30)</div></div>
+    <div class="mc"><div class="mv" id="m-over2">-</div><div class="ml">Überkauft (RSI&gt;70)</div></div>
+    <div class="mc"><div class="mv" id="m-ges">-</div><div class="ml">Analysiert</div></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-title">🔍 Interaktives Aktien-Radar</div>
+  <div class="sec-sub">Tippe einen Ticker oder Namen ein, um das detaillierte mathematische Scoring aus dem Multi-Faktor-Modell live abzufragen.</div>
+  <div class="sw">
+    <input type="text" class="si" id="radar-search" placeholder="Ticker oder Firmenname suchen..." oninput="searchRadar()">
+    <div class="al" id="radar-results"></div>
+  </div>
+  <div id="rw">
+    <div class="rt" id="r-title">-</div>
+    <div class="rs" id="r-score">-</div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-title">⭐ Live Watchlist Analyse</div>
+  <div class="sec-sub">Diese Tabelle und Visualisierung wird asynchron direkt aus den aktuellen Fundamental-CSVs deiner S&amp;P 500 und NASDAQ Datensätze gespeist.</div>
+  <div class="tw" style="margin-bottom: 15px;">
+    <table class="dt" id="watchlist-table">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>KGV (ttm)</th>
+          <th>Forward KGV</th>
+          <th>PEG Ratio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" style="text-align:center; padding:20px; color:var(--tx4);">Lade Daten über Fetch...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="kgv-plot"></div>
+</div>
+
+<div class="sec">
+  <div class="sec-title">🏆 Top Rangliste (Multi-Faktor-Modell)</div>
+  <div class="score-info">
+    Das Scoring basiert auf einer prozentualen Rang-Gewichtung: <strong>30% EPS-Wachstum nä. 5 Jahre</strong>, <strong>20% Gewinnmarge</strong>, <strong>20% Forward KGV</strong>, <strong>15% Aktuelles KGV</strong>, <strong>10% PEG Ratio</strong> und <strong>5% Analysten-Empfehlung</strong>.
+  </div>
+  <div class="fb">
+    <div class="fg"><span class="fl">Sektor</span>
+      <select class="fs" id="f-sektor" onchange="filterScore()"><option value="">Alle Sektoren</option></select>
+    </div>
+    <div class="fg"><span class="fl">Mindest-Score</span>
+      <input type="number" class="fi" id="f-score" min="0" max="100" placeholder="z.B. 70" oninput="filterScore()">
+    </div>
+    <div class="fg"><span class="fl">Suche</span>
+      <input type="text" class="fi" id="f-search" placeholder="Ticker..." oninput="filterScore()">
+    </div>
+    <button class="fr" onclick="resetScoreFilter()">Reset</button>
+  </div>
+  <div class="tw">
+    <table class="dt" id="score-table">
+      <thead>
+        <tr>
+          <th onclick="sortScore(0)">Rang</th>
+          <th onclick="sortScore(1)">Ticker</th>
+          <th onclick="sortScore(2)">Unternehmen</th>
+          <th onclick="sortScore(3)">Sektor</th>
+          <th onclick="sortScore(4)">Score</th>
+          <th onclick="sortScore(5)">KGV Fwd</th>
+          <th onclick="sortScore(6)">EPS 5J</th>
+          <th onclick="sortScore(7)">Marge</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="pg" id="score-pg"></div>
+</div>
+
+<div class="footer">
+  Keine Anlageberatung · Datenaktualisierung automatisiert über GitHub Actions · Erstellt von Noah Schulz
+</div>
+
+<script>
+""" + data_block + """
+// ============================================================
+// CORE APPLICATION LOGIC (RAW STRINGS - PROTECTED BRACES)
+// ============================================================
+let scoreFiltered = [...SD];
+let scoreSortCol = 0;
+let scoreSortAsc = true;
+let scorePage = 1;
+const scorePageSize = 15;
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Theme Initialisierung
+  const savedTheme = localStorage.getItem("theme") || "dark";
+  if (savedTheme === "light") {
+    document.documentElement.classList.add("light");
+    document.getElementById("theme-checkbox").checked = true;
+  }
+  
+  // Statische Kennzahlen befüllen
+  document.getElementById("hdr-date").innerText = DATUM;
+  document.getElementById("m-perf").innerText = (AVG_PERF >= 0 ? "+" : "") + AVG_PERF.toFixed(2) + "%";
+  if (AVG_PERF < 0) document.getElementById("m-perf").classList.add("c-neg");
+  else document.getElementById("m-perf").classList.add("c-pos");
+  
+  document.getElementById("m-pos").innerText = POS_PCT.toFixed(1) + "%";
+  document.getElementById("m-over").innerText = N_OVER;
+  document.getElementById("m-over2").innerText = N_OVER2;
+  document.getElementById("m-ges").innerText = N_GES;
+  
+  // Sektor-Filter Optionen bauen
+  const sel = document.getElementById("f-sektor");
+  SEK.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s; o.innerText = s; sel.appendChild(o);
+  });
+  
+  // Tabellen-Rendering starten
+  filterScore();
+  
+  // HIER DER FIX: Startet den asynchronen Fetch der beiden CSVs relativ vom docs/-Verzeichnis aus
+  ladeDatenVomServer();
+});
+
+// ============================================================
+// REVOLUTIONÄRER LIVE-FETCH BEIDER CSV-DATEIEN
+// ============================================================
+async function ladeDatenVomServer() {
+  try {
+    const [resSP500, resNasdaq] = await Promise.all([
+      fetch('../data/SP500_fundamentals.csv'),
+      fetch('../data/NASDAQ_fundamentals.csv')
+    ]);
+    
+    let combinedStocks = [];
+    if (resSP500.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resSP500.text()));
+    if (resNasdaq.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resNasdaq.text()));
+    
+    stockData = combinedStocks.filter(stock => stock && stock.Ticker && watchlistTickers.includes(stock.Ticker));
+    console.log("Watchlist Live-Daten geladen:", stockData);
+    
+    tabelleBauen();
+    diagrammBauen();
+  } catch (error) {
+    console.error("Fehler beim Fetching der CSVs:", error);
+    document.querySelector("#watchlist-table tbody").innerHTML = `<tr><td colspan="4" style="color:var(--neg); text-align:center;">Fehler beim asynchronen Laden der CSVs.</td></tr>`;
+  }
+}
+
+function csvToObjects(csvText) {
+  const lines = csvText.split(/\\r?\\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const data = line.split(',');
+    if (data.length !== headers.length) return null;
+    return headers.reduce((obj, header, index) => {
+      obj[header.trim()] = data[index].trim();
+      return obj;
+    }, {});
+  }).filter(Boolean);
+}
+
+function tabelleBauen() {
+  const tbody = document.querySelector("#watchlist-table tbody");
+  tbody.innerHTML = "";
+  if(stockData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--tx4);">Keine Daten übereinstimmend.</td></tr>`;
+    return;
+  }
+  stockData.forEach(stock => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td style="font-weight: bold; color: var(--ac);">${stock.Ticker || "-"}</td>
+      <td>${stock['P/E'] || stock.P_E || "-"}</td>
+      <td>${stock['Forward P/E'] || stock.Forward_P_E || "-"}</td>
+      <td>${stock.PEG || "-"}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function diagrammBauen() {
+  const plotDiv = document.getElementById("kgv-plot");
+  if (stockData.length === 0) {
+    plotDiv.innerHTML = "<p style='font-size:12px;color:var(--tx4); text-align:center;'>Warte auf Watchlist-Daten...</p>";
+    return;
+  }
+  let htmlPlot = '<div style="display:flex; flex-direction:column; gap:10px; width:100%; background:var(--bg3); padding:14px; border-radius:8px; border:1px solid var(--brd);">';
+  htmlPlot += '<div style="font-size:11px; color:var(--tx4); font-weight:bold; margin-bottom:4px; text-transform:uppercase;">Visualisierung: Aktuelles KGV (Blau) vs. Forward KGV (Grün)</div>';
+  
+  stockData.forEach(stock => {
+    const pe = parseFloat(stock['P/E'] || stock.P_E) || 0;
+    const fpe = parseFloat(stock['Forward P/E'] || stock.Forward_P_E) || 0;
+    if(pe > 0 || fpe > 0) {
+      htmlPlot += `
+        <div style="font-size:12px; margin-bottom:2px;"><strong>${stock.Ticker}</strong> <span style="color:var(--tx4); font-size:10px;">(KGV: ${pe || '-'} | F-KGV: ${fpe || '-'})</span></div>
+        <div style="display:flex; flex-direction:column; gap:3px; width:100%; margin-bottom:6px; border-left:2px solid var(--brd2); padding-left:6px;">
+          <div style="background:#1A7ACC; height:8px; width:${Math.min(pe * 2, 100)}%; max-width:400px; border-radius:0 4px 4px 0;" title="KGV: ${pe}"></div>
+          <div style="background:#2DD4A0; height:8px; width:${Math.min(fpe * 2, 100)}%; max-width:400px; border-radius:0 4px 4px 0;" title="Forward KGV: ${fpe}"></div>
+        </div>
+      `;
+    }
+  });
+  htmlPlot += '</div>';
+  plotDiv.innerHTML = htmlPlot;
+}
+
+// ============================================================
+// INTERAKTIVE RANGLISTE & FILTER LOGIK
+// ============================================================
+function filterScore() {
+  const sek = document.getElementById("f-sektor").value;
+  const minS = parseFloat(document.getElementById("f-score").value) || 0;
+  const query = document.getElementById("f-search").value.toUpperCase().strip ? document.getElementById("f-search").value.toUpperCase().strip() : document.getElementById("f-search").value.toUpperCase();
+  
+  scoreFiltered = SD.filter(r => {
+    if (sek && r.Sektor !== sek) return false;
+    if (r.Score < minS) return false;
+    if (query && !r.Ticker.includes(query) && !r.Unternehmen.toUpperCase().includes(query)) return false;
+    return true;
+  });
+  
+  scorePage = 1;
+  renderScoreTable();
+}
+
+function resetScoreFilter() {
+  document.getElementById("f-sektor").value = "";
+  document.getElementById("f-score").value = "";
+  document.getElementById("f-search").value = "";
+  scoreFiltered = [...SD];
+  scorePage = 1;
+  renderScoreTable();
+}
+
+function renderScoreTable() {
+  const tbody = document.querySelector("#score-table tbody");
+  tbody.innerHTML = "";
+  
+  const start = (scorePage - 1) * scorePageSize;
+  const end = Math.min(start + scorePageSize, scoreFiltered.length);
+  const pageData = scoreFiltered.slice(start, end);
+  
+  if (pageData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--tx4)">Keine Treffer für die gewählten Filter.</td></tr>';
+    renderPagination(0); return;
+  }
+  
+  pageData.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="ts">${r.Rang}</td>
+      <td class="tp">${r.Ticker}</td>
+      <td class="tn" style="white-space:normal; max-width:180px;">${r.Unternehmen}</td>
+      <td class="ts">${r.Sektor || "–"}</td>
+      <td style="font-weight:700; color:var(--ac)">${r.Score.toFixed(1)}</td>
+      <td>${r.KGV_Forward ? r.KGV_Forward.toFixed(1) : "–"}</td>
+      <td class="${r.EPS_naechste_5J_Pct >= 0 ? 'td-pos' : 'td-neg'}">${r.EPS_naechste_5J_Pct ? r.EPS_naechste_5J_Pct.toFixed(1) + "%" : "–"}</td>
+      <td class="${r.Gewinnmarge_Pct >= 0 ? 'td-pos' : 'td-neg'}">${r.Gewinnmarge_Pct ? r.Gewinnmarge_Pct.toFixed(1) + "%" : "–"}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  renderPagination(scoreFiltered.length);
+}
+
+function renderPagination(totalRows) {
+  const wrap = document.getElementById("score-pg");
+  wrap.innerHTML = "";
+  const totalPages = Math.ceil(totalRows / scorePageSize);
+  if (totalPages <= 1) return;
+  
+  const info = document.createElement("span");
+  info.className = "pi";
+  info.innerText = `Seite ${scorePage} von ${totalPages} (${totalRows} Treffer)`;
+  wrap.appendChild(info);
+  
+  const btnPrev = document.createElement("button");
+  btnPrev.className = "pb"; btnPrev.innerText = "◀";
+  if (scorePage === 1) btnPrev.style.opacity = 0.4;
+  else btnPrev.onclick = () => { scorePage--; renderScoreTable(); };
+  wrap.appendChild(btnPrev);
+  
+  let startP = Math.max(1, scorePage - 2);
+  let endP = Math.min(totalPages, startP + 4);
+  if (endP - startP < 4) startP = Math.max(1, endP - 4);
+  
+  for (let i = startP; i <= endP; i++) {
+    const b = document.createElement("button");
+    b.className = "pb" + (i === scorePage ? " active" : "");
+    b.innerText = i;
+    b.onclick = () => { scorePage = i; renderScoreTable(); };
+    wrap.appendChild(b);
+  }
+  
+  const btnNext = document.createElement("button");
+  btnNext.className = "pb"; btnNext.innerText = "▶";
+  if (scorePage === totalPages) btnNext.style.opacity = 0.4;
+  else btnNext.onclick = () => { scorePage++; renderScoreTable(); };
+  wrap.appendChild(btnNext);
+}
+
+function sortScore(colIndex) {
+  const keys = ["Rang", "Ticker", "Unternehmen", "Sektor", "Score", "KGV_Forward", "EPS_naechste_5J_Pct", "Gewinnmarge_Pct"];
+  const key = keys[colIndex];
+  
+  if (scoreSortCol === colIndex) { scoreSortAsc = !scoreSortAsc; }
+  else { scoreSortCol = colIndex; scoreSortAsc = true; }
+  
+  const ths = document.querySelectorAll("#score-table th");
+  ths.forEach((th, idx) => {
+    th.classList.remove("asc", "desc");
+    if (idx === colIndex) th.classList.add(scoreSortAsc ? "asc" : "desc");
+  });
+  
+  scoreFiltered.sort((a, b) => {
+    let va = a[key]; let vb = b[key];
+    if (va === null || va === undefined) return scoreSortAsc ? 1 : -1;
+    if (vb === null || vb === undefined) return scoreSortAsc ? -1 : 1;
+    if (typeof va === "string") return scoreSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return scoreSortAsc ? va - vb : vb - va;
+  });
+  
+  scorePage = 1;
+  renderScoreTable();
+}
+
+// ============================================================
+# SEARCH ENGINE / RADAR DIALOG
+// ============================================================
+function searchRadar() {
+  const q = document.getElementById("radar-search").value.toUpperCase();
+  const resDiv = document.getElementById("radar-results");
+  if (!q) { resDiv.style.display = "none"; return; }
+  
+  const matches = SD.filter(r => r.Ticker.includes(q) || r.Unternehmen.toUpperCase().includes(q)).slice(0, 6);
+  if (matches.length === 0) { resDiv.innerHTML = '<div class="ai">Kein Unternehmen gefunden</div>'; resDiv.style.display = "block"; return; }
+  
+  resDiv.innerHTML = "";
+  matches.forEach(m => {
+    const div = document.createElement("div");
+    div.className = "ai";
+    div.innerHTML = `<div><span class="ai-tk">${m.Ticker}</span><span style="color:var(--tx2)">${m.Unternehmen}</span></div><span class="ai-sc">Score: ${m.Score.toFixed(1)}</span>`;
+    div.onclick = () => {
+      document.getElementById("r-title").innerText = `${m.Unternehmen} (${m.Ticker}) – Rang ${m.Rang}`;
+      document.getElementById("r-score").innerHTML = `
+        <div style="margin-top:10px; display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; text-align:left;">
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>Gesamt-Score:</strong> <span style="color:var(--ac);font-weight:bold;">${m.Score.toFixed(1)}</span></div>
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>Forward KGV:</strong> ${m.KGV_Forward ? m.KGV_Forward.toFixed(1) : "–"}</div>
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>KGV (ttm):</strong> ${m.KGV ? m.KGV.toFixed(1) : "–"}</div>
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>PEG Ratio:</strong> ${m.PEG ? m.PEG.toFixed(2) : "–"}</div>
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>EPS 5J Wachstum:</strong> ${m.EPS_naechste_5J_Pct ? m.EPS_naechste_5J_Pct.toFixed(1) + "%" : "–"}</div>
+          <div style="background:var(--bg4); padding:10px; border-radius:6px; border:1px solid var(--brd);"><strong>Gewinnmarge:</strong> ${m.Gewinnmarge_Pct ? m.Gewinnmarge_Pct.toFixed(1) + "%" : "–"}</div>
+        </div>
+      `;
+      document.getElementById("rw").style.display = "block";
+      resDiv.style.display = "none";
+      document.getElementById("radar-search").value = m.Ticker;
+    };
+    resDiv.appendChild(div);
+  });
+  resDiv.style.display = "block";
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle("light");
+  localStorage.setItem("theme", isLight ? "light" : "dark");
+}
 </script>
 </body>
 </html>"""
     return html
 
-
 # ============================================================
-# MAIN
+# MAIN EXECUTOR (EXECUTION PIPELINE)
 # ============================================================
 if __name__ == "__main__":
-    print(f"📧 {datum_de}")
+    print(f"✨ Starte Daily Finance Automation: {datum_de} ✨")
     df = lade_daten()
 
     root_dir = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() else os.getcwd()
     abs_data_dir = os.path.join(root_dir, DATA_DIR)
     abs_docs_dir = os.path.join(root_dir, DOCS_DIR)
 
+    # 1. Statischen Newsletter erstellen und sichern
     os.makedirs(abs_data_dir, exist_ok=True)
     mail_html = erstelle_mail(df)
-    
     with open(os.path.join(abs_data_dir, f"{today_str}_newsletter.html"), "w", encoding="utf-8") as f:
         f.write(mail_html)
-    print("💾 Statisches Mail-HTML im Daten-Archiv gespeichert.")
+    print("💾 Statisches Mail-HTML im Daten-Archiv gesichert.")
 
-    # 2. Interaktives Dashboard für GitHub Pages bauen!
+    # 2. Interaktives Dashboard generieren (Vollständige logische Verknüpfung)
     os.makedirs(abs_docs_dir, exist_ok=True)
     dashboard_html = erstelle_dashboard(df)
-    
     with open(os.path.join(abs_docs_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(dashboard_html)
     print("🖥️ Interaktives Dashboard für GitHub Pages (docs/index.html) erfolgreich generiert!")
 
-    # 3. Logo in docs/assets/ kopieren
+    # 3. Assets managen (Logo transferieren)
     os.makedirs(os.path.join(abs_docs_dir, "assets"), exist_ok=True)
     logo_src = os.path.join(root_dir, "assets", "logo.png")
     logo_dst = os.path.join(abs_docs_dir, "assets", "logo.png")
@@ -565,8 +913,11 @@ if __name__ == "__main__":
         shutil.copy2(logo_src, logo_dst)
         print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopiert.")
     else:
-        # Falls das Logo direkt im Hauptverzeichnis liegt
         logo_root_src = os.path.join(root_dir, "logo.png")
         if os.path.exists(logo_root_src):
             shutil.copy2(logo_root_src, logo_dst)
             print("🖼️ Logo aus Root erfolgreich nach docs/assets/logo.png kopiert.")
+        else:
+            print("⚠️ Warnung: logo.png konnte in den Quellverzeichnissen nicht gefunden werden.")
+
+    print("🏁 Pipeline-Lauf erfolgreich beendet!")
