@@ -1,78 +1,62 @@
-# Übergeordneter Name des automatisierten Prozesses in der GitHub-Actions-Oberfläche
 name: Daily Finance Pipeline
 
-# Festlegung der Trigger-Events (Wann springt die Automation an?)
 on:
   schedule:
-    # Automatischer Cron-Trigger: Läuft von Montag bis Freitag jeden Morgen um 06:00 Uhr UTC.
-    - cron: '0 6 * * 1-5'
-  
-  # Pipeline kann auch manuell ausgeführt werden
-  workflow_dispatch:
+    # Führt die Pipeline jeden Tag um 05:00 UTC aus
+    - cron: '0 5 * * *'
+  workflow_dispatch: # Ermöglicht manuelles Triggern über das GitHub-UI
 
-# Definition der auszuführenden Jobs
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    
-    # Timeout auf 6 Stunden gesetzt, falls Scraping nicht funktioniert
-    timeout-minutes: 360
+    timeout-minutes: 360 # Großzügiges Limit für Scraping & Berechnungen
 
-    # Bot darf CSV- und HTML-Dateien in Data-Ordner pushen
-    permissions:
-      contents: write
-
-    # Pipeline-Steps
     steps:
-      # Schritt 1: Klont den aktuellen Code-Stand des Repositories auf den virtuellen Server.
       - name: Repository auschecken
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Holt die gesamte Historie, wichtig für saubere Rebase-Operationen
 
-      # Schritt 2: Initialisiert Python 3.11-Umgebung
       - name: Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip' # Nutzt Caching für schnellere Builds bei täglichem Run
 
-      # Schritt 3: Installiert relevanten Pakete
       - name: Pakete installieren
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # Schritt 4: Fetchen der Daten
-      # Proxy-Zugangsdaten, um IP-Sperren vorzubeugen
-      - name: Pipeline ausführen
+      - name: Pipeline ausführen (Daten holen)
         env:
           PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
-        run: python main.py
+        run: python main.py # Generiert CSVs im data/ Ordner
 
-      # Schritt 5: Erstellung der Mail und Webseite (Secret Variables = Target-Mails)
       - name: Newsletter & Dashboard generieren
         env:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python newsletter.py
+        run: python newsletter.py # Baut HTML-Seiten in docs/ und versendet Mails
 
-      # Schritt 6: Sicherung der Daten und Webseite
       - name: Alles zu GitHub pushen
         run: |
-          # Konfiguration eines anonymen GitHub-Bots als Urheber des Git-Commits
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Holt eventuell parallel aufgelaufene Änderungen vom Remote-Server,
-          # um Push-Konflikte im laufenden Betrieb sauber via Rebase aufzulösen.
+          # Erst den neuesten Stand holen, um Konflikte zu vermeiden
           git pull --rebase origin main
           
-          # Stagt gezielt die aktualisierten Daten- und Web-Ordner (data/ und docs/)
+          # Alle modifizierten Verzeichnisse tracken (inkl. Assets für das Logo falls außerhalb von docs/)
           git add data/ docs/
+          if [ -d "assets" ]; then git add assets/; fi
           
-          # Prüft, ob neue Inhalte generiert wurden. Nur wenn tatsächliche Abweichungen 
-          # vorliegen, wird ein neuer Commit mit dem aktuellen Tagesdatum erzeugt.
-          git diff --staged --quiet || git commit -m "Daily update: $(date +'%Y-%m-%d')"
-          
-          # Schreibt die Änderungen final zurück in das GitHub-Repository.
-          # Sobald docs/index.html aktualisiert wird, zieht GitHub Pages 
-          # automatisch nach und die Live-Webseite ist auf dem neuesten Stand.
-          git push
+          # Nur committen, wenn sich in data/, docs/ oder assets/ wirklich etwas verändert hat
+          if ! git diff --cached --quiet; then
+            git commit -m "Daily update: $(date +'%Y-%m-%d') [skip ci]"
+            git push origin main
+          else
+            echo "Keine neuen Daten oder Dashboard-Änderungen (KGV) festgestellt."
+          fi
