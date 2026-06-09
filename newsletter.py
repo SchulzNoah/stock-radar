@@ -659,7 +659,7 @@ canvas{border-radius:8px;max-width:100%;display:block}
   &nbsp;·&nbsp; Duisburg Analytica
 </div>
 
-<script>
+
 """
 
     js = """
@@ -1137,7 +1137,7 @@ renderSC();
 """
 
     closing = "\n</script>\n</body>\n</html>"
-    return html + "\n<script>\n" + data_block + "\n</script>\n<script>\n" + js + closing
+    return html + "\n<script>\n" + data_block + "\n" + js + closing
 
 # ============================================================
 # MAIL VERSENDEN
