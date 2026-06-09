@@ -6,6 +6,10 @@ on:
 jobs:
   test-run:
     runs-on: ubuntu-latest
+    
+    # DIESER BLOCK FEHLTE: Erlaubt dem github-actions[bot] das Schreiben im Repo
+    permissions:
+      contents: write
 
     steps:
       - name: Repository auschecken
