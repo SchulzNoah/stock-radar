@@ -269,10 +269,10 @@ def erstelle_mail(df):
   </table></div>
 </div>
 <div style="text-align:center;color:#3A5A75;font-size:11px;padding:16px;border-top:1px solid #1A2E45;margin-top:8px;">
-  Keine Anlageberatung – Newsletter erstellt von
-  <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank" style="color:#4DB8FF;text-decoration:none;">Noah Schulz</a>
+ Keine Anlageberatung – Newsletter erstellt von <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank" style="color:#4DB8FF;text-decoration:none;">Noah Schulz</a>
 </div>
 </div></body></html>"""
+
 
 # ============================================================
 # DASHBOARD – vollständig als raw string (kein f-string im JS)
@@ -497,690 +497,60 @@ canvas{border-radius:8px;max-width:100%;display:block}
 </style>
 </head>
 <body>
-
-<!-- HEADER -->
-<div class="hdr">
-  <div class="hdr-left">
-    <img class="hdr-logo" src="assets/logo.png" alt="Duisburg Analytica Logo">
-    <div class="hdr-text">
-      <h1>Noahs Finanzblog <span>📈</span></h1>
-      <div class="sub" id="hdr-datum">–</div>
-    </div>
-  </div>
-  <div class="hdr-right">
-    <div class="tgl-wrap">
-      <span>☀️</span>
-      <label class="tgl">
-        <input type="checkbox" id="thm">
-        <span class="tgl-slider"></span>
-      </label>
-      <span>🌙</span>
-    </div>
-  </div>
-</div>
-
-<!-- MARKTÜBERSICHT -->
-<div class="sec">
-  <div class="sec-title">🌍 Marktübersicht</div>
-  <div class="mg">
-    <div class="mc"><div class="mv" id="mv-p"></div><div class="ml">Ø Perf. 1M</div></div>
-    <div class="mc"><div class="mv" id="mv-pp"></div><div class="ml">Im Plus (1M)</div></div>
-    <div class="mc"><div class="mv c-pos" id="mv-ov"></div><div class="ml">Überverkauft (RSI&lt;30)</div></div>
-    <div class="mc"><div class="mv c-neg" id="mv-ob"></div><div class="ml">Überkauft (RSI&gt;70)</div></div>
-    <div class="mc"><div class="mv" id="mv-n"></div><div class="ml">Aktien analysiert</div></div>
-  </div>
-</div>
-
-<!-- WATCHLIST -->
-<div class="sec">
-  <div class="sec-title">⭐ Noahs Aktien-Watchlist</div>
-  <div class="sec-sub">
-    Analyst-Skala: <strong style="color:var(--pos)">1,0 = Strong Buy</strong> &nbsp;·&nbsp;
-    <strong style="color:var(--pos)">2,0 = Buy</strong> &nbsp;·&nbsp;
-    <strong style="color:var(--tx3)">3,0 = Hold</strong> &nbsp;·&nbsp;
-    <strong style="color:var(--neg)">4,0 = Sell</strong> &nbsp;·&nbsp;
-    <strong style="color:var(--neg)">5,0 = Strong Sell</strong>
-  </div>
-  <div class="tw">
-    <table class="dt" id="tbl-wl">
-      <thead><tr>
-        <th data-col="Ticker">Ticker</th>
-        <th data-col="Unternehmen">Unternehmen</th>
-        <th data-col="Sektor">Sektor</th>
-        <th data-col="Marktkapitalisierung_Mrd">Mkt Cap (Mrd.)</th>
-        <th data-col="Gewinn_Mrd">Gewinn (Mrd.)</th>
-        <th data-col="KGV">KGV</th>
-        <th data-col="KGV_Forward">KGV Fwd.</th>
-        <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
-        <th data-col="PEG">PEG</th>
-        <th data-col="Analyst_Empfehlung">Analyst (1–5)</th>
-        <th data-col="Gewinnmarge_Pct">Gewinnmarge</th>
-      </tr></thead>
-      <tbody id="tb-wl"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- QUALITY SCREEN -->
-<div class="sec">
-  <div class="sec-title">🔬 Quality &amp; Growth Screen</div>
-  <div class="sec-sub">
-    Analyst: <strong>1,0 = Strong Buy</strong> · <strong>5,0 = Strong Sell</strong> &nbsp;·&nbsp;
-    Upside = Abstand zum Analystenkursziel
-  </div>
-  <div class="fb">
-    <div class="fg"><span class="fl">KGV Fwd. (max)</span><input class="fi" type="number" id="f1" value="40"></div>
-    <div class="fg"><span class="fl">Mkt Cap Mrd. (min)</span><input class="fi" type="number" id="f2" placeholder="z.B. 1"></div>
-    <div class="fg"><span class="fl">EPS 5J % (min)</span><input class="fi" type="number" id="f3" value="10"></div>
-    <div class="fg"><span class="fl">PEG (max)</span><input class="fi" type="number" id="f4" placeholder="z.B. 3"></div>
-    <div class="fg"><span class="fl">Gewinnmarge % (min)</span><input class="fi" type="number" id="f6" value="10"></div>
-    <button class="fr" onclick="resetF()">↺ Reset</button>
-  </div>
-  <div class="tw">
-    <table class="dt" id="tbl-qs">
-      <thead><tr>
-        <th data-col="Ticker">Ticker</th>
-        <th data-col="Unternehmen">Unternehmen</th>
-        <th data-col="Sektor">Sektor</th>
-        <th data-col="Marktkapitalisierung_Mrd">Mkt Cap</th>
-        <th data-col="KGV_Forward">KGV Fwd.</th>
-        <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
-        <th data-col="Gewinnmarge_Pct">Gewinnmarge</th>
-        <th data-col="PEG">PEG</th>
-        <th data-col="Analyst_Empfehlung">Analyst (1–5)</th>
-        <th data-col="Analyst_Upside_Pct">Upside %</th>
-      </tr></thead>
-      <tbody id="tb-qs"></tbody>
-    </table>
-  </div>
-  <div class="pg" id="pg-qs"></div>
-</div>
-
-<!-- DOTPLOT -->
-<div class="sec">
-  <div class="sec-title">📊 Univariater Dotplot</div>
-  <div class="mt-wrap">
-    <div class="mt-grp" id="mt-grp">
-      <button class="mt-btn active" data-m="KGV">KGV</button>
-      <button class="mt-btn" data-m="KGV_Forward">Forward KGV</button>
-      <button class="mt-btn" data-m="PEG">PEG</button>
-      <button class="mt-btn" data-m="EPS_naechste_5J_Pct">EPS 5J %</button>
-      <button class="mt-btn" data-m="Perf_Monat_Pct">Perf. 1M</button>
-      <button class="mt-btn" data-m="Perf_Jahr_Pct">Perf. 1J</button>
-    </div>
-    <select class="fs" id="dot-sf" style="width:auto;min-width:170px">
-      <option value="">Alle Sektoren</option>
-    </select>
-  </div>
-  <div class="cc"><canvas id="dotC" height="290"></canvas></div>
-  <div class="ct" id="dot-tt"></div>
-</div>
-
-<!-- SCATTER -->
-<div class="sec">
-  <div class="sec-title">📈 KGV vs. EPS-Wachstum 5J</div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-    <select class="fs" id="sc-sf" style="width:auto;min-width:170px">
-      <option value="">Alle Sektoren</option>
-    </select>
-  </div>
-  <div class="cc"><canvas id="scC" height="300"></canvas></div>
-  <div class="ct" id="sc-tt"></div>
-</div>
-
-<!-- RADAR -->
-<div class="sec">
-  <div class="sec-title">🎯 Aktien-Score &amp; Radar</div>
-  <div class="score-info">
-    <strong>Score-Methodik (Growth-Investor-Perspektive):</strong><br>
-    EPS Wachstum 5J <strong>30 %</strong> &nbsp;·&nbsp;
-    Gewinnmarge <strong>20 %</strong> &nbsp;·&nbsp;
-    Forward KGV <strong>20 %</strong> &nbsp;·&nbsp;
-    KGV <strong>15 %</strong> &nbsp;·&nbsp;
-    PEG <strong>10 %</strong> &nbsp;·&nbsp;
-    Analyst <strong>5 %</strong><br>
-    Normierung per Perzentil-Rang (0–100). Score = gewichteter Durchschnitt.
-  </div>
-  <div class="sw">
-    <input class="si" id="rs" type="text"
-           placeholder="🔍 Unternehmen suchen – z.B. NVIDIA oder NV ...">
-    <div class="al" id="ac"></div>
-  </div>
-  <div id="rw">
-    <div class="rt" id="rt"></div>
-    <div class="rs" id="rsub"></div>
-    <canvas id="rc" style="display:block;margin:16px auto 0"></canvas>
-  </div>
-</div>
-
-<div class="footer">
-  Keine Anlageberatung – Newsletter erstellt von
-  <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank">Noah Schulz</a>
-  &nbsp;·&nbsp; Duisburg Analytica
-</div>
-
 <script>
-"""
+        // Definiert die Ticker deiner Watchlist direkt im JS-Kontext
+        const watchlistTickers = ["AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA","AMD","ASML","VRT","AVGO","TSM","MELI","WDC","SAP","MRVL","MU","AAON","BE"];
+        let stockData = [];
 
-    js = """
-// ============================================================
-// INIT
-// ============================================================
-document.getElementById('hdr-datum').textContent = DATUM;
+        // HIER IST DIE GEWÜNSCHTE INTERAKTIVE LADE-LOGIK:
+        async function ladeDatenVomServer() {
+            try {
+                // Holt beide CSVs parallel über relative Web-Pfade ab
+                const [resSP500, resNasdaq] = await Promise.all([
+                    fetch('../data/SP500_fundamentals.csv'),
+                    fetch('../data/NASDAQ_fundamentals.csv')
+                ]);
+                
+                let combinedStocks = [];
+                if (resSP500.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resSP500.text()));
+                if (resNasdaq.ok) combinedStocks = combinedStocks.concat(csvToObjects(await resNasdaq.text()));
+                
+                stockData = combinedStocks.filter(stock => stock && stock.Ticker && watchlistTickers.includes(stock.Ticker));
+                console.log("Daten erfolgreich geladen:", stockData);
+                
+                tabelleBauen();
+                diagrammBauen();
+            } catch (error) {
+                console.error("Fehler beim Laden:", error);
+            }
+        }
+</script>
+</body>
+</html>"""
+    return html
 
-// Marktübersicht befüllen
-function fDE(v,d=2,sfx=''){
-  if(v===''||v==null||isNaN(+v))return'–';
-  return(+v).toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d})+sfx;
-}
-function fP(v,d=1){return fDE(v,d,'%')}
-function fM(v,d=1){return fDE(v,d,' Mrd.')}
-function sgn(v,d=1){
-  if(v===''||isNaN(+v))return'–';
-  const n=+v;return(n>=0?'+':'−')+fDE(Math.abs(n),d,'%');
-}
-function cc(v){if(v===''||isNaN(+v))return'';return +v>=0?'td-pos':'td-neg';}
-function cv(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
-
-const perfEl=document.getElementById('mv-p');
-perfEl.textContent=sgn(AVG_PERF);
-perfEl.style.color=AVG_COL;
-document.getElementById('mv-pp').textContent=fDE(POS_PCT,1,'%');
-document.getElementById('mv-ov').textContent=fDE(N_OVER,0);
-document.getElementById('mv-ob').textContent=fDE(N_OVER2,0);
-document.getElementById('mv-n').textContent=fDE(N_GES,0);
-
-// ============================================================
-// THEME TOGGLE
-// ============================================================
-const thmEl=document.getElementById('thm');
-function applyTheme(light){
-  document.documentElement.classList.toggle('light',light);
-  localStorage.setItem('theme',light?'light':'dark');
-  setTimeout(()=>{renderDot();renderSC();},50);
-}
-thmEl.addEventListener('change',()=>applyTheme(thmEl.checked));
-(function(){
-  if(localStorage.getItem('theme')==='light'){
-    document.documentElement.classList.add('light');
-    thmEl.checked=true;
-  }
-})();
-
-// ============================================================
-// SEKTOR-SELECTS
-// ============================================================
-['dot-sf','sc-sf'].forEach(id=>{
-  const s=document.getElementById(id);
-  SEK.forEach(sk=>{const o=document.createElement('option');o.value=sk;o.textContent=sk;s.appendChild(o);});
-});
-
-// ============================================================
-// SORTIERBARE TABELLEN
-// ============================================================
-function mkTbl(tblId,tbId,data,renderRow,defCol='',defAsc=false){
-  const tbl=document.getElementById(tblId);
-  const tb=document.getElementById(tbId);
-  let st={c:defCol,a:defAsc};
-  function sort(){
-    if(!st.c)return;
-    data.sort((a,b)=>{
-      const av=isNaN(+a[st.c])?String(a[st.c]||''):+a[st.c];
-      const bv=isNaN(+b[st.c])?String(b[st.c]||''):+b[st.c];
-      return st.a?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
-    });
-  }
-  function draw(rows){tb.innerHTML=rows.map(renderRow).join('');}
-  tbl.querySelectorAll('th[data-col]').forEach(th=>{
-    th.addEventListener('click',()=>{
-      const col=th.dataset.col;
-      if(st.c===col)st.a=!st.a;else{st.c=col;st.a=true;}
-      tbl.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
-      th.classList.add(st.a?'asc':'desc');
-      sort();draw(data);
-    });
-  });
-  if(st.c){const th=tbl.querySelector(`th[data-col="${st.c}"]`);if(th)th.classList.add(st.a?'asc':'desc');}
-  sort();draw(data);
-}
-
-mkTbl('tbl-wl','tb-wl',[...WL],r=>`<tr>
-  <td class="tp">${r.Ticker||'–'}</td>
-  <td class="tn">${(r.Unternehmen||'–').substring(0,24)}</td>
-  <td class="ts">${(r.Sektor||'–').substring(0,18)}</td>
-  <td style="text-align:right">${fM(r.Marktkapitalisierung_Mrd)}</td>
-  <td style="text-align:right">${fM(r.Gewinn_Mrd,2)}</td>
-  <td style="text-align:right">${fDE(r.KGV,1)}</td>
-  <td style="text-align:right">${fDE(r.KGV_Forward,1)}</td>
-  <td style="text-align:right" class="${cc(r.EPS_naechste_5J_Pct)}">${fP(r.EPS_naechste_5J_Pct)}</td>
-  <td style="text-align:right">${fDE(r.PEG,2)}</td>
-  <td style="text-align:right">${fDE(r.Analyst_Empfehlung,2)}</td>
-  <td style="text-align:right" class="${cc(r.Gewinnmarge_Pct)}">${fP(r.Gewinnmarge_Pct)}</td>
-</tr>`,'Marktkapitalisierung_Mrd',false);
-
-// ============================================================
-// QUALITY SCREEN
-// ============================================================
-let qPage=1;const PS=10;
-let qSort={c:'EPS_naechste_5J_Pct',a:false};
-
-function getQF(){
-  const kmax=+document.getElementById('f1').value||Infinity;
-  const mmin=+document.getElementById('f2').value||-Infinity;
-  const emin=+document.getElementById('f3').value||-Infinity;
-  const pmax=+document.getElementById('f4').value||Infinity;
-  const gmin=+document.getElementById('f6').value||-Infinity;
-  return QS.filter(r=>
-    (+r.KGV_Forward||Infinity)<=kmax&&
-    (+r.Marktkapitalisierung_Mrd||-Infinity)>=mmin&&
-    (+r.EPS_naechste_5J_Pct||-Infinity)>=emin&&
-    (+r.PEG||Infinity)<=pmax&&
-    (+r.Gewinnmarge_Pct||-Infinity)>=gmin);
-}
-function renderQ(){
-  let data=getQF();
-  data.sort((a,b)=>{
-    const c=qSort.c;
-    const av=isNaN(+a[c])?String(a[c]||''):+a[c];
-    const bv=isNaN(+b[c])?String(b[c]||''):+b[c];
-    return qSort.a?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
-  });
-  const tp=Math.ceil(data.length/PS)||1;
-  if(qPage>tp)qPage=1;
-  const sl=data.slice((qPage-1)*PS,qPage*PS);
-  document.getElementById('tb-qs').innerHTML=sl.map(r=>`<tr>
-    <td class="tp">${r.Ticker||'–'}</td>
-    <td class="tn">${(r.Unternehmen||'–').substring(0,24)}</td>
-    <td class="ts">${(r.Sektor||'–').substring(0,18)}</td>
-    <td style="text-align:right">${fM(r.Marktkapitalisierung_Mrd)}</td>
-    <td style="text-align:right">${fDE(r.KGV_Forward,1)}</td>
-    <td style="text-align:right" class="${cc(r.EPS_naechste_5J_Pct)}">${fP(r.EPS_naechste_5J_Pct)}</td>
-    <td style="text-align:right" class="${cc(r.Gewinnmarge_Pct)}">${fP(r.Gewinnmarge_Pct)}</td>
-    <td style="text-align:right">${fDE(r.PEG,2)}</td>
-    <td style="text-align:right">${fDE(r.Analyst_Empfehlung,2)}</td>
-    <td style="text-align:right" class="${cc(r.Analyst_Upside_Pct)}">${sgn(r.Analyst_Upside_Pct)}</td>
-  </tr>`).join('');
-  const pg=document.getElementById('pg-qs');pg.innerHTML='';
-  const sp=document.createElement('span');sp.className='pi';
-  const s=(qPage-1)*PS+1,e=Math.min(qPage*PS,data.length);
-  sp.textContent=`${s}–${e} von ${data.length}`;pg.appendChild(sp);
-  for(let i=1;i<=tp;i++){
-    const b=document.createElement('button');b.className='pb'+(i===qPage?' active':'');
-    b.textContent=i;b.onclick=(p=>()=>{qPage=p;renderQ();})(i);pg.appendChild(b);
-  }
-}
-document.getElementById('tbl-qs').querySelectorAll('th[data-col]').forEach(th=>{
-  th.addEventListener('click',()=>{
-    const c=th.dataset.col;
-    if(qSort.c===c)qSort.a=!qSort.a;else{qSort.c=c;qSort.a=false;}
-    document.getElementById('tbl-qs').querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
-    th.classList.add(qSort.a?'asc':'desc');qPage=1;renderQ();
-  });
-});
-['f1','f2','f3','f4','f6'].forEach(id=>{
-  document.getElementById(id).addEventListener('input',()=>{qPage=1;renderQ();});
-});
-function resetF(){
-  document.getElementById('f1').value=40;
-  ['f2','f4'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f3').value=10;document.getElementById('f6').value=10;
-  qPage=1;renderQ();
-}
-renderQ();
-
-// ============================================================
-// DOTPLOT – 6 METRIKEN
-// ============================================================
-const METRICS={
-  KGV:               {label:'KGV (Trailing)',       col:'KGV',               clr:'rgba(77,184,255,0.6)',  lc:'#4DB8FF',cap:[0,150],  pct:false,dec:1,sfx:''},
-  KGV_Forward:       {label:'Forward KGV',          col:'KGV_Forward',       clr:'rgba(45,212,160,0.6)',  lc:'#2DD4A0',cap:[0,100],  pct:false,dec:1,sfx:''},
-  PEG:               {label:'PEG Ratio',            col:'PEG',               clr:'rgba(255,179,71,0.6)',  lc:'#FFB347',cap:[0,5],    pct:false,dec:2,sfx:''},
-  EPS_naechste_5J_Pct:{label:'EPS Wachstum 5J (%)',col:'EPS_naechste_5J_Pct',clr:'rgba(164,120,255,0.6)',lc:'#A478FF',cap:[-20,60], pct:true, dec:1,sfx:'%'},
-  Perf_Monat_Pct:    {label:'Performance 1M (%)',   col:'Perf_Monat_Pct',    clr:'rgba(255,92,114,0.6)', lc:'#FF5C72',cap:[-60,120],pct:true, dec:1,sfx:'%'},
-  Perf_Jahr_Pct:     {label:'Performance 1J (%)',   col:'Perf_Jahr_Pct',     clr:'rgba(255,215,0,0.6)',  lc:'#FFD700',cap:[-90,400],pct:true, dec:1,sfx:'%'},
-};
-let curM='KGV';
-let dotScales={};
-
-document.getElementById('mt-grp').querySelectorAll('.mt-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    curM=btn.dataset.m;
-    document.getElementById('mt-grp').querySelectorAll('.mt-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('dot-tt').style.display='none';
-    renderDot();
-  });
-});
-document.getElementById('dot-sf').addEventListener('change',renderDot);
-
-function renderDot(){
-  const cfg=METRICS[curM];
-  const sek=document.getElementById('dot-sf').value;
-  const col=cfg.col;
-
-  const data=PD.filter(d=>{
-    const v=+d[col];
-    if(isNaN(v)||d[col]==='')return false;
-    if(sek&&d.Sektor!==sek)return false;
-    return v>=cfg.cap[0]&&v<=cfg.cap[1];
-  });
-  const vals=data.map(d=>+d[col]);
-  if(!vals.length)return;
-
-  const posOnly=['KGV','KGV_Forward','PEG'];
-  const sv=posOnly.includes(col)?vals.filter(v=>v>0):vals;
-  const avg=sv.reduce((a,b)=>a+b,0)/(sv.length||1);
-  const sorted_sv=[...sv].sort((a,b)=>a-b);
-  const med=sorted_sv[Math.floor(sorted_sv.length/2)];
-
-  const cnv=document.getElementById('dotC');
-  const ctx=cnv.getContext('2d');
-  const W=cnv.parentElement.offsetWidth||820,H=290;
-  cnv.width=W;cnv.height=H;
-
-  const bgC=cv('--bg2')||'#0D1520';
-  const grC=cv('--brd')||'#1A2E45';
-  const txC=cv('--tx4')||'#5A7A95';
-
-  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,H);
-  const P={t:32,r:20,b:40,l:60};
-  const pw=W-P.l-P.r,ph=H-P.t-P.b;
-  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
-  const yMn=mn-rng*.08,yMx=mx+rng*.08;
-  const ySc=v=>P.t+ph-((v-yMn)/(yMx-yMn))*ph;
-
-  for(let g=0;g<=5;g++){
-    const v=yMn+(yMx-yMn)*g/5,y=ySc(v);
-    ctx.strokeStyle=grC;ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+pw,y);ctx.stroke();
-    ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';ctx.textAlign='right';
-    ctx.fillText(fDE(v,cfg.dec)+cfg.sfx,P.l-5,y+3);
-  }
-  if(cfg.pct&&yMn<0&&yMx>0){
-    const y0=ySc(0);ctx.strokeStyle=txC;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
-    ctx.beginPath();ctx.moveTo(P.l,y0);ctx.lineTo(P.l+pw,y0);ctx.stroke();ctx.setLineDash([]);
-  }
-
-  const sorted=[...data].sort((a,b)=>+a[col]-+b[col]);
-  dotScales={sorted,col,ySc,pw,P,cfg};
-
-  sorted.forEach((d,i)=>{
-    const x=P.l+(i/Math.max(sorted.length-1,1))*pw;
-    const y=ySc(+d[col]);
-    ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);
-    ctx.fillStyle=cfg.clr;ctx.fill();
-  });
-
-  function hl(val,lbl,dash){
-    if(isNaN(val))return;
-    const y=ySc(val);
-    ctx.strokeStyle=cfg.lc;ctx.lineWidth=1.8;ctx.setLineDash(dash||[]);
-    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+pw,y);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=cfg.lc;ctx.font='bold 9px Segoe UI,sans-serif';ctx.textAlign='left';
-    ctx.fillText(lbl+': '+fDE(val,cfg.dec)+cfg.sfx,P.l+4,y-3);
-  }
-  hl(avg,'Ø',[]);
-  hl(med,'Median',[6,4]);
-
-  ctx.fillStyle=cfg.lc;ctx.font='bold 11px Segoe UI,sans-serif';ctx.textAlign='center';
-  ctx.fillText(cfg.label,P.l+pw/2,P.t-10);
-  const note=posOnly.includes(col)?` | Ø/Median: ${sv.length} pos. Werte`:'';
-  ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';
-  ctx.fillText(`${data.length} Unternehmen | ${sek||'Alle Sektoren'}${note} | Klick für Details`,P.l+pw/2,H-5);
-}
-
-document.getElementById('dotC').addEventListener('click',function(e){
-  if(!dotScales.sorted||!dotScales.sorted.length)return;
-  const rect=this.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)*(this.width/rect.width);
-  const my=(e.clientY-rect.top)*(this.height/rect.height);
-  const {sorted,col,ySc,pw,P,cfg}=dotScales;
-  let cl=null,md=Infinity;
-  sorted.forEach((d,i)=>{
-    const x=P.l+(i/Math.max(sorted.length-1,1))*pw;
-    const y=ySc(+d[col]);
-    const dist=Math.sqrt((x-mx)**2+(y-my)**2);
-    if(dist<md){md=dist;cl=d;}
-  });
-  const tt=document.getElementById('dot-tt');
-  if(md<20&&cl){
-    tt.style.display='block';
-    const ex=[
-      cl.KGV            ?`KGV: <strong>${fDE(cl.KGV,1)}</strong>`:'',
-      cl.KGV_Forward    ?`Fwd KGV: <strong>${fDE(cl.KGV_Forward,1)}</strong>`:'',
-      cl.EPS_naechste_5J_Pct!==''?`EPS 5J: <strong>${fDE(cl.EPS_naechste_5J_Pct,1)}%</strong>`:'',
-      cl.PEG            ?`PEG: <strong>${fDE(cl.PEG,2)}</strong>`:'',
-      cl.Perf_Monat_Pct!==''?`Perf 1M: <strong>${fDE(cl.Perf_Monat_Pct,1)}%</strong>`:'',
-      cl.Perf_Jahr_Pct !==''?`Perf 1J: <strong>${fDE(cl.Perf_Jahr_Pct,1)}%</strong>`:'',
-    ].filter(Boolean).join(' &nbsp;|&nbsp; ');
-    tt.innerHTML=`
-      <div style="margin-bottom:5px">
-        <strong style="color:var(--ac);font-size:13px">${cl.Ticker}</strong>
-        &nbsp;<span style="color:var(--tx)">${cl.Unternehmen||''}</span>
-        &nbsp;<span style="color:var(--tx3);font-size:11px">(${cl.Sektor||''})</span>
-      </div>
-      <div style="font-size:11px;color:var(--tx2)">${ex}</div>
-      <div style="margin-top:4px;font-size:10px;color:var(--ac)">
-        ${cfg.label}: <strong style="font-size:13px">${fDE(+cl[col],cfg.dec)}${cfg.sfx}</strong>
-      </div>`;
-  }else{tt.style.display='none';}
-});
-
-// ============================================================
-// SCATTER
-// ============================================================
-let scSc={};
-function renderSC(){
-  const sek=document.getElementById('sc-sf').value;
-  const data=PD.filter(d=>(!sek||d.Sektor===sek)&&+d.KGV>0&&+d.KGV<100&&+d.EPS_naechste_5J_Pct>-50&&+d.EPS_naechste_5J_Pct<100);
-  scSc={data};
-  const cnv=document.getElementById('scC');
-  const ctx=cnv.getContext('2d');
-  const W=cnv.parentElement.offsetWidth||820,H=300;
-  cnv.width=W;cnv.height=H;
-  const bgC=cv('--bg2')||'#0D1520';
-  const grC=cv('--brd')||'#1A2E45';
-  const txC=cv('--tx4')||'#5A7A95';
-  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,H);
-  if(!data.length)return;
-  const P={t:28,r:20,b:48,l:54};
-  const pw=W-P.l-P.r,ph=H-P.t-P.b;
-  const xv=data.map(d=>+d.KGV),yv=data.map(d=>+d.EPS_naechste_5J_Pct);
-  const xmx=Math.min(Math.ceil(Math.max(...xv)*1.1/10)*10,100);
-  const ymn=Math.min(Math.floor(Math.min(...yv)/5)*5,0);
-  const ymx=Math.ceil(Math.max(...yv)*1.1/5)*5;
-  const xs=v=>P.l+(v/xmx)*pw;
-  const ys=v=>P.t+ph-((v-ymn)/(ymx-ymn))*ph;
-  scSc={data,xs,ys};
-  for(let i=0;i<=5;i++){
-    const xval=xmx*i/5,yval=ymn+(ymx-ymn)*i/5;
-    ctx.strokeStyle=grC;ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(xs(xval),P.t);ctx.lineTo(xs(xval),P.t+ph);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(P.l,ys(yval));ctx.lineTo(P.l+pw,ys(yval));ctx.stroke();
-    ctx.fillStyle=txC;ctx.font='9px Segoe UI,sans-serif';
-    ctx.textAlign='center';ctx.fillText(fDE(xval,0),xs(xval),P.t+ph+13);
-    ctx.textAlign='right';ctx.fillText(fDE(yval,0)+'%',P.l-4,ys(yval)+3);
-  }
-  const SC={Technology:'#4DB8FF',Healthcare:'#2DD4A0',Financials:'#FFB347',
-    'Consumer Cyclical':'#FF7BAC',Energy:'#FFD700',Industrials:'#A78BFA',
-    'Consumer Defensive':'#6EE7B7',Utilities:'#93C5FD',
-    'Communication Services':'#F472B6','Basic Materials':'#D4A574','Real Estate':'#FCA5A5'};
-  data.forEach(d=>{
-    ctx.beginPath();ctx.arc(xs(+d.KGV),ys(+d.EPS_naechste_5J_Pct),4,0,Math.PI*2);
-    ctx.fillStyle=(SC[d.Sektor]||'#4DB8FF')+'99';ctx.fill();
-  });
-  ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';ctx.textAlign='center';
-  ctx.fillText('KGV (Trailing)',P.l+pw/2,H-5);
-  ctx.save();ctx.translate(14,P.t+ph/2);ctx.rotate(-Math.PI/2);
-  ctx.fillText('EPS-Wachstum 5J (%)',0,0);ctx.restore();
-  ctx.fillText(`${data.length} Unternehmen | ${sek||'Alle Sektoren'}`,P.l+pw/2,P.t-8);
-}
-document.getElementById('scC').addEventListener('mousemove',function(e){
-  if(!scSc.data||!scSc.data.length)return;
-  const rect=this.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)*(this.width/rect.width);
-  const my=(e.clientY-rect.top)*(this.height/rect.height);
-  const {data,xs,ys}=scSc;
-  let cl=null,md=Infinity;
-  data.forEach(d=>{
-    const dx=xs(+d.KGV)-mx,dy=ys(+d.EPS_naechste_5J_Pct)-my;
-    const dist=Math.sqrt(dx*dx+dy*dy);if(dist<md){md=dist;cl=d;}
-  });
-  const tt=document.getElementById('sc-tt');
-  if(md<18&&cl){
-    tt.style.display='block';
-    tt.innerHTML=`<strong style="color:var(--ac)">${cl.Ticker}</strong> – ${cl.Unternehmen||''}
-      &nbsp;|&nbsp; KGV: <strong>${fDE(cl.KGV,1)}</strong>
-      &nbsp;|&nbsp; EPS 5J: <strong>${fDE(cl.EPS_naechste_5J_Pct,1)}%</strong>
-      &nbsp;|&nbsp; <span style="color:var(--tx3)">${cl.Sektor||''}</span>`;
-  }else{tt.style.display='none';}
-});
-document.getElementById('sc-sf').addEventListener('change',renderSC);
-
-// ============================================================
-// RADAR
-// ============================================================
-const rsEl=document.getElementById('rs');
-rsEl.addEventListener('input',onRS);
-rsEl.addEventListener('blur',()=>setTimeout(hideAC,200));
-
-function onRS(){
-  const q=rsEl.value.toLowerCase().trim();
-  const ac=document.getElementById('ac');
-  if(q.length<1){ac.style.display='none';return;}
-  const m=SD.filter(d=>d.Ticker.toLowerCase().includes(q)||(d.Unternehmen||'').toLowerCase().includes(q)).slice(0,8);
-  if(!m.length){ac.style.display='none';return;}
-  ac.innerHTML=m.map(d=>`<div class="ai" onclick="selR('${d.Ticker}')">
-    <span><span class="ai-tk">${d.Ticker}</span>${d.Unternehmen||''}</span>
-    <span class="ai-sc">Score: ${d.Score} | Rang ${d.Rang}</span>
-  </div>`).join('');
-  ac.style.display='block';
-}
-function hideAC(){document.getElementById('ac').style.display='none';}
-function selR(tk){
-  const d=SD.find(r=>r.Ticker===tk);if(!d)return;
-  rsEl.value=d.Ticker+' – '+(d.Unternehmen||'');
-  hideAC();drawRadar(d);
-}
-function drawRadar(d){
-  const rw=document.getElementById('rw');
-  const sc=+d.Score;
-  const scCol=sc>=70?'#2DD4A0':sc>=45?'#FFB347':'#FF5C72';
-  document.getElementById('rt').textContent=`${d.Rang}. ${d.Unternehmen} (${d.Ticker})`;
-  document.getElementById('rsub').innerHTML=
-    `Score: <span style="color:${scCol};font-weight:700;font-size:20px">${sc}/100</span>
-     &nbsp;·&nbsp; Rang <strong>${d.Rang}</strong> von ${SD.length}`;
-  rw.style.display='block';
-  requestAnimationFrame(()=>_paintRadar(d,sc,scCol));
-}
-function _paintRadar(d,sc,scCol){
-  const cnv=document.getElementById('rc');
-  const ctx=cnv.getContext('2d');
-  const W=Math.min(cnv.parentElement.offsetWidth||420,440);
-  cnv.width=W;cnv.height=W;
-  ctx.clearRect(0,0,W,W);
-  const cx=W/2,cy=W/2,R=W*.30;
-  const lbls=['EPS 5J Wachstum','Gewinnmarge','Forward KGV','KGV','PEG','Analyst'];
-  const keys=['S_EPS5','S_Marge','S_FKGV','S_KGV','S_PEG','S_Analyst'];
-  const vals=keys.map(k=>Math.max(0,Math.min(100,+d[k]||0)));
-  const N=lbls.length;
-  const bgC=cv('--bg2')||'#0D1520';
-  const grC=cv('--brd')||'#1A2E45';
-  const txC=cv('--tx2')||'#C8D8E8';
-  const tx4C=cv('--tx4')||'#5A7A95';
-  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,W);
-  for(let ring=1;ring<=5;ring++){
-    const r=R*ring/5;ctx.strokeStyle=grC;ctx.lineWidth=1;ctx.beginPath();
-    for(let i=0;i<=N;i++){
-      const a=(i/N)*Math.PI*2-Math.PI/2;
-      i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
-    }
-    ctx.closePath();ctx.stroke();
-    ctx.fillStyle=tx4C;ctx.font='8px Segoe UI,sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText((ring*20).toString(),cx+3,cy-r+4);
-  }
-  for(let i=0;i<N;i++){
-    const a=(i/N)*Math.PI*2-Math.PI/2;ctx.strokeStyle=grC;ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a));ctx.stroke();
-  }
-  ctx.beginPath();
-  vals.forEach((v,i)=>{
-    const a=(i/N)*Math.PI*2-Math.PI/2,r=R*v/100;
-    i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
-  });
-  ctx.closePath();ctx.fillStyle=scCol+'30';ctx.fill();
-  ctx.strokeStyle=scCol;ctx.lineWidth=2.5;ctx.stroke();
-  vals.forEach((v,i)=>{
-    const a=(i/N)*Math.PI*2-Math.PI/2,r=R*v/100;
-    ctx.beginPath();ctx.arc(cx+r*Math.cos(a),cy+r*Math.sin(a),5,0,Math.PI*2);
-    ctx.fillStyle=scCol;ctx.fill();ctx.strokeStyle=bgC;ctx.lineWidth=1.5;ctx.stroke();
-  });
-  lbls.forEach((lb,i)=>{
-    const a=(i/N)*Math.PI*2-Math.PI/2,lR=R+36;
-    const lx=cx+lR*Math.cos(a),ly=cy+lR*Math.sin(a);
-    ctx.fillStyle=txC;ctx.font='bold 10px Segoe UI,sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(lb,lx,ly-8);ctx.fillStyle=scCol;ctx.font='9px Segoe UI,sans-serif';
-    ctx.fillText(fDE(vals[i],0)+'/100',lx,ly+7);
-  });
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillStyle=scCol;ctx.font=`bold 30px Segoe UI,sans-serif`;
-  ctx.fillText(sc.toString(),cx,cy-10);
-  ctx.fillStyle=tx4C;ctx.font='11px Segoe UI,sans-serif';
-  ctx.fillText('Score',cx,cy+12);
-}
-
-// START
-renderDot();
-renderSC();
-"""
-
-    closing = "\n</script>\n</body>\n</html>"
-    return html + "\n<script>\n" + data_block + "\n</script>\n<script>\n" + js + closing
-
-# ============================================================
-# MAIL VERSENDEN
-# ============================================================
-def sende_mail(html):
-    if not all([MAIL_SENDER,MAIL_PASSWORD,MAIL_RECEIVER]):
-        print("❌ Credentials fehlen"); return False
-    msg=MIMEMultipart("alternative")
-    msg["Subject"]=f"Noahs Finanzblog 📈 – {datum_de}"
-    msg["From"]=f"Noahs Finanzblog <{MAIL_SENDER}>"
-    msg["To"]=MAIL_RECEIVER
-    msg.attach(MIMEText(html,"html"))
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com",465) as s:
-            s.login(MAIL_SENDER,MAIL_PASSWORD)
-            s.sendmail(MAIL_SENDER,MAIL_RECEIVER,msg.as_string())
-        print(f"✅ Mail an {MAIL_RECEIVER}"); return True
-    except Exception as e:
-        print(f"❌ {e}"); return False
 
 # ============================================================
 # MAIN
 # ============================================================
-if __name__=="__main__":
-    print(f"📧 Starte Verarbeitung für: {datum_de}")
-    
-    # Falls main.py das Arbeitsverzeichnis verändert hat, arbeiten wir mit absoluten Pfaden
-    root_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
-    abs_data_dir = os.path.join(root_dir, DATA_DIR)
-    abs_docs_dir = os.path.join(root_dir, DOCS_DIR)
-    
+if __name__ == "__main__":
+    print(f"📧 {datum_de}")
     df = lade_daten()
 
-    # 1. Mail-HTML generieren & im Daten-Archiv sichern
+    root_dir = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() else os.getcwd()
+    abs_data_dir = os.path.join(root_dir, DATA_DIR)
+    abs_docs_dir = os.path.join(root_dir, DOCS_DIR)
+
     os.makedirs(abs_data_dir, exist_ok=True)
     mail_html = erstelle_mail(df)
+    
     with open(os.path.join(abs_data_dir, f"{today_str}_newsletter.html"), "w", encoding="utf-8") as f:
         f.write(mail_html)
     print("💾 Statisches Mail-HTML im Daten-Archiv gespeichert.")
 
     # 2. Interaktives Dashboard für GitHub Pages bauen!
     os.makedirs(abs_docs_dir, exist_ok=True)
-    dashboard_html = erstelle_dashboard(df) # <-- JETZT WIRD DAS INTERAKTIVE JS-DASHBOARD GENERIERT!
+    dashboard_html = erstelle_dashboard(df)
     
     with open(os.path.join(abs_docs_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(dashboard_html)
@@ -1193,19 +563,10 @@ if __name__=="__main__":
     
     if os.path.exists(logo_src):
         shutil.copy2(logo_src, logo_dst)
-        print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopieren.")
+        print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopiert.")
     else:
         # Falls das Logo direkt im Hauptverzeichnis liegt
         logo_root_src = os.path.join(root_dir, "logo.png")
         if os.path.exists(logo_root_src):
             shutil.copy2(logo_root_src, logo_dst)
             print("🖼️ Logo aus Root erfolgreich nach docs/assets/logo.png kopiert.")
-        else:
-            print("⚠️ Hinweis: logo.png wurde weder im Hauptverzeichnis noch in /assets gefunden.")
-
-    # 4. Newsletter-E-Mail absenden
-    sende_erfolgreich = sende_mail(mail_html)
-    if sende_erfolgreich:
-        print("🚀 Mail-Versand erfolgreich abgeschlossen.")
-    else:
-        print("❌ Mail-Versand fehlgeschlagen.")
