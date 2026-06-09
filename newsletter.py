@@ -511,12 +511,12 @@ canvas{border-radius:8px;max-width:100%;display:block}
   </div>
   <div class="hdr-right">
     <div class="tgl-wrap">
-      <span>☀️</span>
+      <span>🌙</span>
       <label class="tgl">
         <input type="checkbox" id="thm">
         <span class="tgl-slider"></span>
       </label>
-      <span>🌙</span>
+      <span>☀️</span>
     </div>
   </div>
 </div>
