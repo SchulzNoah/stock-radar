@@ -72,7 +72,7 @@ def fmt(v, d=2, sfx=""):
 def lade_daten():
     sp_f = sorted(glob.glob(f"{DATA_DIR}/*_SP500_fundamentals.csv"))
     ns_f = sorted(glob.glob(f"{DATA_DIR}/*_NASDAQ_fundamentals.csv"))
-    if not sp_f or not ns_f: raise FileNotFoundError("Keine CSVs gefunden!")
+    if not sp_f or not ns_f: raise FileNotFoundError("Keine CSVs!")
     sp = pd.read_csv(sp_f[-1], dtype=str, low_memory=False)
     ns = pd.read_csv(ns_f[-1], dtype=str, low_memory=False)
     print(f"SP500: {len(sp)} | NASDAQ: {len(ns)}")
@@ -115,43 +115,39 @@ def lade_daten():
     print(f"Master: {len(df)} Unternehmen"); return df
 
 # ============================================================
-# SCORE CALCULATIONS
+# SCORE
 # ============================================================
 def berechne_score(df):
     s = df[['Ticker','Unternehmen','Sektor','KGV','KGV_Forward',
             'EPS_naechste_5J_Pct','Gewinnmarge_Pct','PEG',
             'Analyst_Empfehlung','Marktkapitalisierung_Mrd']].copy()
-    
-    # Für das Ranking und Scoring bereinigen wir temporär unvollständige Daten
+    s = s[s['KGV_Forward'].notna()&s['EPS_naechste_5J_Pct'].notna()&
+          s['Gewinnmarge_Pct'].notna()&(s['KGV_Forward']>0)&
+          (s['KGV_Forward']<200)&(s['Marktkapitalisierung_Mrd'].fillna(0)>0.3)].copy()
     s['kgv_c']  = s['KGV'].clip(1,100).fillna(50)
-    s['fkgv_c'] = s['KGV_Forward'].clip(1,80).fillna(40)
-    s['eps5_c'] = s['EPS_naechste_5J_Pct'].clip(-20,60).fillna(5)
-    s['mg_c']   = s['Gewinnmarge_Pct'].clip(-10,50).fillna(5)
+    s['fkgv_c'] = s['KGV_Forward'].clip(1,80)
+    s['eps5_c'] = s['EPS_naechste_5J_Pct'].clip(-20,60)
+    s['mg_c']   = s['Gewinnmarge_Pct'].clip(-10,50)
     s['peg_c']  = s['PEG'].clip(0.1,5).fillna(3)
     s['anl_c']  = s['Analyst_Empfehlung'].clip(1,5).fillna(3)
-    
-    def pr(x, inv=False): 
-        r = x.rank(pct=True) * 100
-        return 100 - r if inv else r
-
+    def pr(x, inv=False): r=x.rank(pct=True)*100; return 100-r if inv else r
     s['S_EPS5']    = pr(s['eps5_c'])
     s['S_Marge']   = pr(s['mg_c'])
-    s['S_FKGV']    = pr(s['fkgv_c'], True)
-    s['S_KGV']     = pr(s['kgv_c'], True)
-    s['S_PEG']     = pr(s['peg_c'], True)
-    s['S_Analyst'] = pr(s['anl_c'], True)
-    
-    s['Score'] = (s['S_EPS5']*0.30 + s['S_Marge']*0.20 + s['S_FKGV']*0.20 +
-                  s['S_KGV']*0.15  + s['S_PEG']*0.10   + s['S_Analyst']*0.05).round(1)
-    s = s.sort_values('Score', ascending=False).reset_index(drop=True)
-    s['Rang'] = s.index + 1
+    s['S_FKGV']    = pr(s['fkgv_c'],True)
+    s['S_KGV']     = pr(s['kgv_c'],True)
+    s['S_PEG']     = pr(s['peg_c'],True)
+    s['S_Analyst'] = pr(s['anl_c'],True)
+    s['Score'] = (s['S_EPS5']*0.30+s['S_Marge']*0.20+s['S_FKGV']*0.20+
+                  s['S_KGV']*0.15+s['S_PEG']*0.10+s['S_Analyst']*0.05).round(1)
+    s = s.sort_values('Score',ascending=False).reset_index(drop=True)
+    s['Rang'] = s.index+1
     return s[['Rang','Ticker','Unternehmen','Sektor','Score',
                'S_EPS5','S_Marge','S_FKGV','S_KGV','S_PEG','S_Analyst',
                'KGV','KGV_Forward','EPS_naechste_5J_Pct','Gewinnmarge_Pct',
-               'PEG','Analyst_Empfehlung','Marktkapitalisierung_Mrd']]
+               'PEG','Analyst_Empfehlung']]
 
 # ============================================================
-# STATISCHE MAIL (UNCHANGED CORE)
+# STATISCHE MAIL
 # ============================================================
 def erstelle_mail(df):
     def pfc(v):
@@ -254,954 +250,963 @@ def erstelle_mail(df):
 </div>
 <div style="background:#0D1520;border:1px solid #1A2E45;border-radius:12px;padding:20px;margin-bottom:16px;">
   <div style="font-size:17px;font-weight:700;color:#4DB8FF;margin-bottom:4px;padding-bottom:10px;border-bottom:1px solid #1A2E45;">⭐ Noahs Aktien-Watchlist</div>
+  <div style="font-size:11px;color:#5A7A95;margin-bottom:12px;">Analyst: 1,0 = Strong Buy · 2,0 = Buy · 3,0 = Hold · 4,0 = Sell · 5,0 = Strong Sell</div>
   <div style="overflow-x:auto;"><table width="100%" cellpadding="0" cellspacing="0" style="min-width:700px;">
     <thead><tr style="background:#0A1628;">
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase">Ticker</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase">Unternehmen</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase">Sektor</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">Mkt Cap</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">Gewinn</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">KGV</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">KGV Fwd</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">EPS 5J</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">PEG</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">Analyst</th>
-      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;text-align:right">Marge</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Ticker</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Unternehmen</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Sektor</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Mkt Cap</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Gewinn</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">KGV</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">KGV Fwd.</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">EPS 5J</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">PEG</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Analyst</th>
+      <th style="padding:9px 10px;color:#4DB8FF;font-size:10px;text-align:right;border-bottom:2px solid #1E3A5F;text-transform:uppercase;white-space:nowrap">Gewinnmarge</th>
     </tr></thead>
     <tbody>{wr}</tbody>
   </table></div>
 </div>
+<div style="text-align:center;color:#3A5A75;font-size:11px;padding:16px;border-top:1px solid #1A2E45;margin-top:8px;">
+  Keine Anlageberatung – Newsletter erstellt von
+  <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank" style="color:#4DB8FF;text-decoration:none;">Noah Schulz</a>
+</div>
 </div></body></html>"""
 
 # ============================================================
-# INTERAKTIVES DASHBOARD GENERATOR
+# DASHBOARD – vollständig als raw string (kein f-string im JS)
 # ============================================================
 def erstelle_dashboard(df):
-    # Generiere bereinigten Datensatz für das Web-Dashboard
-    sd = berechne_score(df)
-    
-    # 1. Alle Unternehmen für den Quality & Growth Screen behalten (auch die mit NA)
-    # Erzeuge ein Mapping, um Ränge/Scores für gematchte Ticker zu ergänzen
-    score_lookup = sd.set_index('Ticker')['Score'].to_dict()
-    rang_lookup = sd.set_index('Ticker')['Rang'].to_dict()
-    
-    qs_list = []
-    for _, r in df.iterrows():
-        t = r['Ticker']
-        qs_list.append({
-            'Ticker': t,
-            'Unternehmen': str(r['Unternehmen']),
-            'Sektor': str(r['Sektor']),
-            'Marktkapitalisierung_Mrd': float(r['Marktkapitalisierung_Mrd']) if pd.notna(r['Marktkapitalisierung_Mrd']) else '',
-            'KGV_Forward': float(r['KGV_Forward']) if pd.notna(r['KGV_Forward']) else '',
-            'EPS_naechste_5J_Pct': float(r['EPS_naechste_5J_Pct']) if pd.notna(r['EPS_naechste_5J_Pct']) else '',
-            'PEG': float(r['PEG']) if pd.notna(r['PEG']) else '',
-            'Analyst_Empfehlung': float(r['Analyst_Empfehlung']) if pd.notna(r['Analyst_Empfehlung']) else '',
-            'Gewinnmarge_Pct': float(r['Gewinnmarge_Pct']) if pd.notna(r['Gewinnmarge_Pct']) else '',
-            'Analyst_Upside_Pct': float(r['Analyst_Upside_Pct']) if pd.notna(r['Analyst_Upside_Pct']) else '',
-            'Score': float(score_lookup.get(t, 0)) if t in score_lookup else '',
-            'Rang': int(rang_lookup.get(t, 9999)) if t in rang_lookup else ''
-        })
+    # Daten vorbereiten
+    wl_df = df[df['Ticker'].isin(WATCHLIST_TICKERS)].copy()
+    wl_df = wl_df.sort_values('Marktkapitalisierung_Mrd', ascending=False)
 
-    # Sektorliste extrahieren
-    sektoren = sorted([str(s) for s in df['Sektor'].dropna().unique() if str(s) != 'nan'])
-    
-    # Aggregierte Daten für den globalen Zustand
-    avg_perf = float(df['Perf_Monat_Pct'].mean())
-    positiv_pct = float((df['Perf_Monat_Pct'] > 0).mean() * 100)
-    n_over = int((df['RSI'] < 30).sum())
-    n_over2 = int((df['RSI'] > 70).sum())
-    n_ges = len(df)
-    avg_col = 'var(--pos)' if avg_perf >= 0 else 'var(--neg)'
+    qs_df = (df[df['Gewinnmarge_Pct'].notna()&df['EPS_naechste_5J_Pct'].notna()&
+                df['KGV_Forward'].notna()&(df['Gewinnmarge_Pct']>10)&
+                (df['EPS_naechste_5J_Pct']>10)&(df['KGV_Forward']>0)&
+                (df['KGV_Forward']<40)&(df['ROE_Pct'].fillna(0)>15)]
+             .assign(Score=lambda x:
+                x['Gewinnmarge_Pct'].rank(pct=True)*0.25+
+                x['EPS_naechste_5J_Pct'].rank(pct=True)*0.35+
+                x['ROE_Pct'].rank(pct=True)*0.20+
+                (-x['KGV_Forward']).rank(pct=True)*0.20)
+             .nlargest(200,'Score')
+             [['Ticker','Unternehmen','Sektor','Marktkapitalisierung_Mrd',
+               'KGV_Forward','EPS_naechste_5J_Pct','Gewinnmarge_Pct',
+               'PEG','Analyst_Empfehlung','Analyst_Upside_Pct']])
 
-    # JavaScript JSON-Datenstrukturen injizieren
-    js_data = f"""
-    const DATUM = "{datum_de}";
-    const AVG_PERF = {avg_perf};
-    const POS_PCT = {positiv_pct};
-    const N_OVER = {n_over};
-    const N_OVER2 = {n_over2};
-    const N_GES = {n_ges};
-    const AVG_COL = "{avg_col}";
-    const SEK = {json.dumps(sektoren, ensure_ascii=False)};
-    const SD = {sd.to_json(orient='records', ensure_ascii=False)};
-    const QS_DATA = {json.dumps(qs_list, ensure_ascii=False)};
-    const WL_TICKERS = {json.dumps(WATCHLIST_TICKERS)};
-    """
+    pd_df = df[df['KGV'].notna()&df['KGV_Forward'].notna()&
+               df['EPS_naechste_5J_Pct'].notna()&df['Sektor'].notna()&
+               (df['KGV']>0)&(df['KGV']<150)&
+               (df['KGV_Forward']>0)&(df['KGV_Forward']<100)
+               ][['Ticker','Unternehmen','Sektor','KGV','KGV_Forward',
+                  'EPS_naechste_5J_Pct','PEG','Perf_Monat_Pct','Perf_Jahr_Pct']].copy()
 
+    sc_df    = berechne_score(df)
+    sek_list = sorted(df['Sektor'].dropna().unique().tolist())
+
+    avg_perf    = float(round(df['Perf_Monat_Pct'].mean(), 2))
+    positiv_pct = float(round((df['Perf_Monat_Pct']>0).mean()*100, 1))
+    n_over      = int((df['RSI']<30).sum())
+    n_over2     = int((df['RSI']>70).sum())
+    n_ges       = len(df)
+    avg_col     = "#2DD4A0" if avg_perf >= 0 else "#FF5C72"
+
+    # JSON
+    wl_json  = wl_df.fillna("").to_json(orient="records")
+    qs_json  = qs_df.fillna("").to_json(orient="records")
+    pd_json  = pd_df.fillna("").to_json(orient="records")
+    sc_json  = sc_df.fillna("").to_json(orient="records")
+    sek_json = json.dumps(sek_list)
+
+    # Python-generierte Werte als JS-Block (normaler f-string, kein JS drin)
+    data_block = (
+        f'const DATUM="{datum_de}";'
+        f'const AVG_PERF={avg_perf};'
+        f'const AVG_COL="{avg_col}";'
+        f'const POS_PCT={positiv_pct};'
+        f'const N_OVER={n_over};'
+        f'const N_OVER2={n_over2};'
+        f'const N_GES={n_ges};'
+        f'const WL={wl_json};'
+        f'const QS={qs_json};'
+        f'const PD={pd_json};'
+        f'const SD={sc_json};'
+        f'const SEK={sek_json};'
+    )
+
+    # HTML/CSS/JS als reiner raw string – kein {{ }} nötig
     html = """<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="assets/logo.png">
-<title>Duisburg Analytica | Executive Stock Radar</title>
+
+<title>Noahs Finanzblog 📈</title>
 <style>
 :root {
-  --bg: #060913; 
-  --bg2: #0b1326; 
-  --bg3: #111e38; 
-  --bg4: #080f20;
-  --brd: #16294a; 
-  --brd2: #223e70; 
-  --tx: #f0f5fa; 
-  --tx2: #b5cbfa; 
-  --tx3: #6c8ec7; 
-  --tx4: #486594;
-  --ac: #38bdf8; 
-  --ac-rgb: 56,189,248;
-  --pos: #10b981; 
-  --neg: #f43f5e; 
-  --warn: #f59e0b;
-  --thbg: #e2e8f0;
+  --bg:#080C14; --bg2:#0D1520; --bg3:#111D2E; --bg4:#0A1628;
+  --brd:#1A2E45; --brd2:#1E3A5F;
+  --tx:#E8EDF5; --tx2:#C8D8E8; --tx3:#8AACC8; --tx4:#5A7A95; --tx5:#3A5A75;
+  --ac:#4DB8FF; --pos:#2DD4A0; --neg:#FF5C72; --warn:#FFB347; --thbg:#0A1628;
 }
 html.light {
-  --bg: #f4f7fc; 
-  --bg2: #ffffff; 
-  --bg3: #e2ecf8; 
-  --bg4: #f8fafc;
-  --brd: #cbd5e1; 
-  --brd2: #94a3b8; 
-  --tx: #0f172a; 
-  --tx2: #334155; 
-  --tx3: #64748b; 
-  --tx4: #94a3b8;
-  --ac: #0284c7; 
-  --ac-rgb: 2,132,199;
-  --pos: #059669; 
-  --neg: #dc2626; 
-  --warn: #d97706;
+  --bg:#F0F4F8; --bg2:#FFFFFF; --bg3:#EBF0F7; --bg4:#DDE6F0;
+  --brd:#C8D8E8; --brd2:#A0B8D0;
+  --tx:#0D1B2E; --tx2:#1E3A5F; --tx3:#2A5080; --tx4:#4A7090; --tx5:#7090A8;
+  --ac:#1A7ACC; --pos:#1A8060; --neg:#CC2040; --warn:#C07000; --thbg:#DDE6F0;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body {
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--tx);
-  padding: 40px 20px;
-  min-height: 100vh;
-  transition: background .3s, color .3s;
-}
-/* Premium Glassmorphism Wrapper */
-.app-container {
-  max-width: 1300px;
-  margin: 0 auto;
-  background: rgba(11, 19, 38, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--brd);
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-}
-html.light .app-container {
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 20px 40px rgba(148, 163, 184, 0.15);
-}
-/* HEADER UI */
-.hdr {
-  background: linear-gradient(135deg, rgba(13, 27, 46, 0.8), rgba(18, 37, 64, 0.8));
-  border: 1px solid var(--brd2);
-  border-radius: 20px;
-  padding: 24px 32px;
-  margin-bottom: 32px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  box-shadow: 0 8px 32px rgba(56, 189, 248, 0.05);
-}
-html.light .hdr {
-  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
-  border: 1px solid #7dd3fc;
-}
-.hdr-left { display: flex; align-items: center; gap: 20px; }
-.hdr-logo {
-  height: 60px; width: auto; object-fit: contain;
-  filter: drop-shadow(0 4px 12px rgba(56, 189, 248, 0.3));
-}
-.hdr-text h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
-.hdr-text h1 span { color: var(--ac); }
-.hdr-text .sub { color: var(--tx3); font-size: 13px; margin-top: 4px; font-weight: 500; }
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);
+     padding:16px;max-width:1000px;margin:0 auto;transition:background .3s,color .3s}
 
-/* TOGGLE BUTTON SWITCH */
-.tgl-wrap { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--tx2); }
-.tgl { position: relative; width: 54px; height: 28px; cursor: pointer; }
-.tgl input { opacity: 0; width: 0; height: 0; }
-.tgl-slider {
-  position: absolute; inset: 0; background: var(--bg3);
-  border-radius: 28px; transition: .3s; border: 1px solid var(--brd);
-}
-.tgl-slider::before {
-  content: '🌙'; position: absolute; width: 22px; height: 22px;
-  left: 2px; top: 2px; background: var(--bg2); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
-  transition: .3s; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-html.light .tgl-slider::before { content: '☀️'; background: #fff; }
-.tgl input:checked + .tgl-slider { background: var(--ac); }
-.tgl input:checked + .tgl-slider::before { transform: translateX(26px); }
+/* HEADER */
+.hdr{background:linear-gradient(135deg,#0D1B2E,#122540);border:1px solid var(--brd2);
+     border-radius:16px;padding:20px 24px;margin-bottom:16px;
+     display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+html.light .hdr{background:linear-gradient(135deg,#C8DCF0,#A8C8E8)}
+.hdr-left{display:flex;align-items:center;gap:16px}
+.hdr-logo{height:64px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(77,184,255,0.3))}
+.hdr-text h1{font-size:clamp(17px,3.5vw,26px);font-weight:700;color:var(--tx)}
+.hdr-text h1 span{color:var(--ac)}
+.hdr-text .sub{color:var(--tx3);font-size:12px;margin-top:3px}
+.hdr-right{display:flex;align-items:center;gap:12px}
 
-/* GRID SYSTEMS */
-.grid-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
-.mv-box {
-  background: var(--bg2); border: 1px solid var(--brd); border-radius: 16px;
-  padding: 20px; text-align: center; transition: transform 0.2s, box-shadow 0.2s;
-}
-.mv-box:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-.mv-v { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
-.mv-l { font-size: 12px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+/* DARK/LIGHT TOGGLE */
+.tgl-wrap{display:flex;align-items:center;gap:8px;font-size:15px}
+.tgl{position:relative;width:50px;height:27px;cursor:pointer;flex-shrink:0}
+.tgl input{opacity:0;width:0;height:0;position:absolute}
+.tgl-slider{position:absolute;inset:0;background:var(--brd2);border-radius:27px;
+            transition:.3s;border:1px solid var(--brd2)}
+.tgl-slider::before{content:'';position:absolute;width:21px;height:21px;
+                    left:3px;top:2px;background:var(--ac);
+                    border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.tgl input:checked + .tgl-slider{background:#1E3A5F}
+.tgl input:checked + .tgl-slider::before{transform:translateX(23px)}
 
-.layout-visuals { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 32px; }
-@media(max-width:950px){ .layout-visuals { grid-template-columns: 1fr; } }
+/* SECTIONS */
+.sec{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;
+     padding:20px;margin-bottom:16px}
+.sec-title{font-size:17px;font-weight:700;color:var(--ac);margin-bottom:14px;
+           padding-bottom:10px;border-bottom:1px solid var(--brd)}
+.sec-sub{font-size:11px;color:var(--tx4);margin-top:-10px;margin-bottom:14px;line-height:1.6}
 
-/* CARDS */
-.sec {
-  background: var(--bg2); border: 1px solid var(--brd); border-radius: 20px;
-  padding: 24px; margin-bottom: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-}
-.sec-title { font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-.sec-sub { font-size: 13px; color: var(--tx3); margin-bottom: 20px; line-height: 1.5; }
+/* METRICS */
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.mc{background:var(--bg3);border:1px solid var(--brd2);border-radius:10px;
+    padding:14px 10px;text-align:center}
+.mv{font-size:clamp(15px,3vw,21px);font-weight:700;color:var(--ac);line-height:1.2}
+.ml{font-size:10px;color:var(--tx4);margin-top:4px}
+.c-pos{color:var(--pos)!important}.c-neg{color:var(--neg)!important}
 
-/* PREMIUM FILTERS */
-.fb { display: flex; flex-wrap: wrap; gap: 16px; background: var(--bg4); padding: 16px; border-radius: 14px; border: 1px solid var(--brd); margin-bottom: 20px; }
-.fg { display: flex; flex-direction: column; gap: 6px; }
-.fl { font-size: 11px; font-weight: 700; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.5px; }
-.fi, .fs {
-  background: var(--bg2); border: 1px solid var(--brd); color: var(--tx);
-  padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; outline: none; transition: border-color 0.2s;
-}
-.fi:focus, .fs:focus { border-color: var(--ac); }
-.fr {
-  align-self: flex-end; background: var(--bg3); border: 1px solid var(--brd); color: var(--tx2);
-  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-}
-.fr:hover { background: var(--ac); color: #000; border-color: var(--ac); }
+/* TABLES */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.dt{width:100%;border-collapse:collapse;font-size:12px;min-width:460px}
+table.dt th{background:var(--thbg);color:var(--ac);padding:9px 8px;text-align:left;
+            border-bottom:2px solid var(--brd2);white-space:nowrap;cursor:pointer;
+            user-select:none;font-weight:700;font-size:10px;text-transform:uppercase;
+            letter-spacing:.5px;transition:background .15s}
+table.dt th:hover{background:var(--brd)}
+table.dt th.asc::after{content:' ▲';color:var(--ac)}
+table.dt th.desc::after{content:' ▼';color:var(--ac)}
+table.dt th:not(.asc):not(.desc)::after{content:' ⇅';color:var(--tx4)}
+table.dt td{padding:8px;border-bottom:1px solid var(--brd);
+            color:var(--tx2);white-space:nowrap;font-size:12px}
+table.dt tr:hover td{background:var(--bg3)}
+.tp{color:var(--ac);font-weight:700}.tn{color:var(--tx)}.ts{color:var(--tx3)}
+.td-pos{color:var(--pos);font-weight:600}.td-neg{color:var(--neg);font-weight:600}
 
-/* TABLES WITH SCROLLBARS */
-.tw { overflow-x: auto; border-radius: 12px; border: 1px solid var(--brd); }
-.dt { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-.dt th {
-  background: var(--bg3); color: var(--tx2); font-weight: 600; padding: 12px 14px;
-  cursor: pointer; user-select: none; border-bottom: 2px solid var(--brd); white-space: nowrap;
-}
-.dt th:hover { color: var(--tx); background: var(--brd); }
-.dt th.asc::after { content: " ▴"; color: var(--ac); }
-.dt th.desc::after { content: " ▾"; color: var(--ac); }
-.dt td { padding: 10px 14px; border-bottom: 1px solid var(--brd); color: var(--tx2); white-space: nowrap; }
-.dt tr:last-child td { border-bottom: none; }
-.dt tr:hover td { background: var(--bg4); color: var(--tx); }
+/* PAGINATION */
+.pg{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+.pb{background:var(--bg3);border:1px solid var(--brd2);color:var(--tx3);
+    padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;transition:all .15s}
+.pb:hover,.pb.active{background:var(--brd2);color:var(--ac);border-color:var(--ac)}
+.pi{color:var(--tx4);font-size:11px}
 
-/* BADGES FOR STRATEGIES */
-.badge-rec { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; text-align: center; display: inline-block; }
-.rec-sb { background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); } /* Dark green text */
-html.light .rec-sb { color: #064e3b; background: rgba(16, 185, 129, 0.25); }
-.rec-b  { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); } /* Light green */
-html.light .rec-b { color: #047857; background: rgba(52, 211, 153, 0.25); }
-.rec-h  { background: rgba(148, 163, 184, 0.15); color: var(--tx3); border: 1px solid rgba(148, 163, 184, 0.3); } /* Grey / Yellow */
-.rec-s  { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); } /* Orange */
-.rec-ss { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); } /* Red */
+/* FILTERS */
+.fb{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;
+    padding:14px;background:var(--bg4);border-radius:8px;border:1px solid var(--brd)}
+.fg{display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px}
+.fl{font-size:10px;color:var(--tx4);text-transform:uppercase;letter-spacing:.5px}
+.fi,.fs{background:var(--bg3);border:1px solid var(--brd2);color:var(--tx);
+        padding:6px 8px;border-radius:6px;font-size:11px;font-family:inherit;
+        width:100%;transition:border-color .2s}
+.fi:focus,.fs:focus{outline:none;border-color:var(--ac)}
+.fr{background:transparent;border:1px solid var(--brd2);color:var(--tx4);
+    padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;
+    align-self:flex-end;transition:all .15s;font-family:inherit}
+.fr:hover{border-color:var(--ac);color:var(--ac)}
 
-.td-pos { color: var(--pos) !important; font-weight: 600; }
-.td-neg { color: var(--neg) !important; font-weight: 600; }
-.ticker-link { color: var(--ac); font-weight: 700; cursor: pointer; text-decoration: none; }
-.ticker-link:hover { text-decoration: underline; }
+/* METRIC TOGGLE */
+.mt-wrap{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.mt-grp{display:flex;border:1px solid var(--brd2);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+.mt-btn{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border:none;
+        background:var(--bg3);color:var(--tx3);transition:all .2s;font-family:inherit;
+        border-right:1px solid var(--brd2)}
+.mt-btn:last-child{border-right:none}
+.mt-btn.active{background:var(--ac);color:#050C18}
+.mt-btn:hover:not(.active){background:var(--brd);color:var(--tx)}
 
-/* GRAPHICS & INTERACTIVE OVERLAYS */
-.canvas-holder { position: relative; background: var(--bg4); border-radius: 14px; border: 1px solid var(--brd); padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 300px; }
-canvas { max-width: 100%; height: auto; display: block; }
+/* CHART */
+.cc{position:relative;width:100%;margin-top:8px}
+canvas{border-radius:8px;max-width:100%;display:block}
+.ct{background:var(--bg3);border:1px solid var(--brd2);border-radius:8px;
+    padding:10px 14px;margin-top:10px;font-size:12px;color:var(--tx2);display:none;
+    line-height:1.6}
 
-/* PREMIUM OVERLAY REAL-TIME TOOLTIP */
-.radar-overlay-tooltip {
-  position: absolute; top: 12px; right: 12px; background: rgba(8, 15, 32, 0.9);
-  border: 1px solid var(--brd2); border-radius: 10px; padding: 12px 14px; font-size: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: none; z-index: 10; min-width: 190px;
-  pointer-events: none; backdrop-filter: blur(4px);
-}
-html.light .radar-overlay-tooltip { background: rgba(255, 255, 255, 0.95); border-color: var(--brd); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
-.r-tt-row { display: flex; justify-content: space-between; margin-top: 4px; gap: 12px; }
-.r-tt-lbl { color: var(--tx3); font-weight: 500; }
-.r-tt-val { color: var(--tx); font-weight: 700; text-align: right; }
+/* SEARCH / RADAR */
+.sw{position:relative;margin-bottom:14px}
+.si{width:100%;background:var(--bg3);border:1px solid var(--brd2);color:var(--tx);
+    padding:10px 14px;border-radius:8px;font-size:13px;font-family:inherit;
+    transition:border-color .2s}
+.si:focus{outline:none;border-color:var(--ac)}
+.al{position:absolute;top:100%;left:0;right:0;background:var(--bg3);
+    border:1px solid var(--brd2);border-top:none;border-radius:0 0 8px 8px;
+    z-index:100;max-height:230px;overflow-y:auto;display:none}
+.ai{padding:9px 14px;cursor:pointer;font-size:12px;color:var(--tx2);
+    border-bottom:1px solid var(--brd);
+    display:flex;justify-content:space-between;align-items:center}
+.ai:hover{background:var(--brd);color:var(--ac)}
+.ai-tk{color:var(--ac);font-weight:700;margin-right:10px}
+.ai-sc{color:var(--tx4);font-size:10px}
+#rw{display:none;margin-top:16px;text-align:center}
+.rt{font-size:18px;font-weight:700;color:var(--tx)}
+.rs{font-size:13px;color:var(--tx3);margin-top:4px}
 
-/* RADAR TARGET WRAPPER */
-.radar-meta-block { text-align: center; margin-bottom: 12px; }
-#rtitle { font-size: 16px; font-weight: 700; color: var(--ac); }
-#rsub { font-size: 12px; color: var(--tx3); margin-top: 2px; }
+/* SCORE INFO */
+.score-info{background:var(--bg4);border:1px solid var(--brd);border-radius:8px;
+            padding:12px 14px;margin-bottom:14px;font-size:12px;
+            color:var(--tx3);line-height:1.8}
+.score-info strong{color:var(--tx2)}
 
 /* FOOTER */
-.ftr { text-align: center; margin-top: 4px; padding-top: 20px; border-top: 1px solid var(--brd); font-size: 12px; color: var(--tx4); font-weight: 500; }
-.ftr a { color: var(--ac); text-decoration: none; font-weight: 600; }
+.footer{text-align:center;color:var(--tx5);font-size:11px;
+        margin-top:20px;padding:16px;border-top:1px solid var(--brd)}
+.footer a{color:var(--ac);text-decoration:none}
+
+@media(max-width:620px){
+  body{padding:10px}
+  .hdr{padding:14px 16px}
+  .hdr-logo{height:48px}
+  .sec{padding:14px}
+  .fb{flex-direction:column}
+  .fg{min-width:100%}
+  .mt-grp{width:100%}
+  .mt-btn{flex:1;text-align:center;font-size:10px;padding:6px 8px}
+}
 </style>
 </head>
 <body>
-<div class="app-container">
 
-  <div class="hdr">
-    <div class="hdr-left">
-      <img src="assets/logo.png" class="hdr-logo" alt="Logo" onerror="this.style.display='none'">
-      <div class="hdr-text">
-        <h1>Duisburg Analytica <span>Stock Radar</span></h1>
-        <div class="sub">Generiert am <span id="hdr-datum"></span> · Institutional Grade Data Pipeline</div>
-      </div>
-    </div>
-    <div class="hdr-right">
-      <div class="tgl-wrap">
-        <span>Light Mode</span>
-        <label class="tgl">
-          <input type="checkbox" id="thm">
-          <span class="tgl-slider"></span>
-        </label>
-      </div>
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <img class="hdr-logo" src="assets/logo.png" alt="Duisburg Analytica Logo">
+    <div class="hdr-text">
+      <h1>Noahs Finanzblog <span>📈</span></h1>
+      <div class="sub" id="hdr-datum">–</div>
     </div>
   </div>
-
-  <div class="grid-top">
-    <div class="mv-box"><div class="mv-v" id="mv-p">--</div><div class="mv-l">Ø Perf. 1M</div></div>
-    <div class="mv-box"><div class="mv-v" id="mv-pp">--</div><div class="mv-l">Im Plus (1M)</div></div>
-    <div class="mv-box"><div class="mv-v" id="mv-ov">--</div><div class="mv-l">RSI Überverkauft</div></div>
-    <div class="mv-box"><div class="mv-v" id="mv-ob">--</div><div class="mv-l">RSI Überkauft</div></div>
-    <div class="mv-box"><div class="mv-v" id="mv-n">--</div><div class="mv-l">Unternehmen</div></div>
-  </div>
-
-  <div class="layout-visuals">
-    
-    <div class="sec" style="display:flex; flex-direction:column; justify-content:space-between;">
-      <div>
-        <div class="sec-title">🎯 Interaktiver Quant-Radar</div>
-        <div class="sec-sub">Klicke auf ein beliebiges Ticker-Symbol in den Tabellen unten, um das hexagonale Faktorenprofil zu laden. Hover über das Chart für Rohkennzahlen.</div>
-      </div>
-      <div id="radar-wrapper" style="display:none; margin: auto 0;">
-        <div class="radar-meta-block">
-          <div id="rtitle">Ticker</div>
-          <div id="rsub">Score</div>
-        </div>
-        <div class="canvas-holder">
-          <div class="radar-overlay-tooltip" id="radar-tt">
-            <div style="font-weight:700; border-bottom:1px solid var(--brd); padding-bottom:4px; margin-bottom:4px; color:var(--ac);" id="r-tt-name">Metric</div>
-            <div class="r-tt-row"><span class="r-tt-lbl">EPS Wachstum 5J:</span><span class="r-tt-val" id="tt-eps"></span></div>
-            <div class="r-tt-row"><span class="r-tt-lbl">Gewinnmarge:</span><span class="r-tt-val" id="tt-marge"></span></div>
-            <div class="r-tt-row"><span class="r-tt-lbl">Forward KGV:</span><span class="r-tt-val" id="tt-fkgv"></span></div>
-            <div class="r-tt-row"><span class="r-tt-lbl">Aktuelles KGV:</span><span class="r-tt-val" id="tt-kgv"></span></div>
-            <div class="r-tt-row"><span class="r-tt-lbl">PEG Ratio:</span><span class="r-tt-val" id="tt-peg"></span></div>
-            <div class="r-tt-row"><span class="r-tt-lbl">Analysten-Rating:</span><span class="r-tt-val" id="tt-anl"></span></div>
-          </div>
-          <canvas id="rc"></canvas>
-        </div>
-      </div>
-      <div id="radar-placeholder" style="text-align:center; padding:60px 20px; color:var(--tx3); font-weight:500; border:1px dashed var(--brd); border-radius:14px; margin:auto 0;">
-        Wähle eine Aktie in den Tabellen aus, um die fundamentale Radar-Analyse zu projizieren.
-      </div>
-    </div>
-
-    <div class="sec">
-      <div class="sec-title">📊 Univariates Faktoren-Cluster</div>
-      <div class="sec-sub">Verteilung aller Aktien entlang einzelner Metriken. Die durchgezogene Linie repräsentiert ausschließlich den statistischen Median.</div>
-      <div class="fb">
-        <div class="fg">
-          <span class="fl">Metrik wählen</span>
-          <select class="fs" id="dot-col" onchange="renderDot()">
-            <option value="KGV_Forward">KGV Forward</option>
-            <option value="KGV">KGV Aktuell</option>
-            <option value="EPS_naechste_5J_Pct">EPS Wachstum 5J (%)</option>
-            <option value="Gewinnmarge_Pct">Gewinnmarge (%)</option>
-            <option value="PEG">PEG Ratio</option>
-            <option value="Analyst_Empfehlung">Analysten-Rating (1-5)</option>
-          </select>
-        </div>
-        <div class="fg">
-          <span class="fl">Sektor</span>
-          <select class="fs" id="dot-sf" onchange="renderDot()"><option value="">Alle Sektoren</option></select>
-        </div>
-        <div class="fg">
-          <span class="fl">Statistischer Filter</span>
-          <select class="fs" id="dot-outliers" onchange="renderDot()">
-            <option value="no" selected>Ohne Ausreißer (Default)</option>
-            <option value="yes">Mit Ausreißer anzeigen</option>
-          </select>
-        </div>
-      </div>
-      <div class="canvas-holder"><canvas id="dotC"></canvas></div>
-    </div>
-
-  </div>
-
-  <div class="sec">
-    <div class="sec-title">📈 Risiko-Rendite Scatterplot Matrix</div>
-    <div class="sec-sub">X-Achse: Bewertungsmultiplikator (KGV Forward) · Y-Achse: Zukünftiges EPS-Wachstum (5J %). Unten rechts = Günstiges Wachstum (Wachstums-Schnäppchen).</div>
-    <div class="fb">
-      <div class="fg">
-        <span class="fl">Sektor-Filter</span>
-        <select class="fs" id="sc-sf" onchange="renderSC()"><option value="">Alle Sektoren</option></select>
-      </div>
-      <div class="fg"><span class="fl">KGV Fwd. Max Cap</span><input class="fi" type="number" id="sc-kgv-max" value="60"></div>
-      <div class="fg"><span class="fl">Min EPS %</span><input class="fi" type="number" id="sc-eps-min" value="-10"></div>
-    </div>
-    <div class="canvas-holder"><canvas id="scC"></canvas></div>
-  </div>
-
-  <div class="sec">
-    <div class="sec-title">🔬 Quality &amp; Growth Screen (Inklusive NA-Werte)</div>
-    <div class="sec-sub">Diese Tabelle zeigt alle Unternehmen, die deine Qualitätskriterien erfüllen **oder unvollständige Datenpunkte (NA-Werte) aufweisen**, um potenzielle Informationsasymmetrien auszunutzen.</div>
-    <div class="fb">
-      <div class="fg"><span class="fl">KGV Fwd (Max)</span><input class="fi" type="number" id="f1" value="40"></div>
-      <div class="fg"><span class="fl">Mkt Cap Mrd (Min)</span><input class="fi" type="number" id="f2" placeholder="z.B. 1"></div>
-      <div class="fg"><span class="fl">EPS 5J % (Min)</span><input class="fi" type="number" id="f3" value="10"></div>
-      <div class="fg"><span class="fl">PEG (Max)</span><input class="fi" type="number" id="f4" placeholder="z.B. 3"></div>
-      <div class="fg"><span class="fl">Gewinnmarge % (Min)</span><input class="fi" type="number" id="f6" value="10"></div>
-      <button class="fr" onclick="resetF()">↺ Reset Filters</button>
-    </div>
-    <div class="tw">
-      <table class="dt" id="tbl-qs">
-        <thead>
-          <tr>
-            <th data-col="Rang">Rang</th>
-            <th data-col="Ticker">Ticker</th>
-            <th data-col="Unternehmen">Unternehmen</th>
-            <th data-col="Sektor">Sektor</th>
-            <th data-col="Marktkapitalisierung_Mrd">Mkt Cap (Mrd)</th>
-            <th data-col="KGV_Forward">KGV Fwd</th>
-            <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
-            <th data-col="PEG">PEG</th>
-            <th data-col="Analyst_Empfehlung">Analyst</th>
-            <th data-col="Gewinnmarge_Pct">Marge</th>
-            <th data-col="Analyst_Upside_Pct">Upside</th>
-            <th data-col="Score">Quant Score</th>
-          </tr>
-        </thead>
-        <tbody id="tb-qs"></tbody>
-      </table>
+  <div class="hdr-right">
+    <div class="tgl-wrap">
+      <span>☀️</span>
+      <label class="tgl">
+        <input type="checkbox" id="thm">
+        <span class="tgl-slider"></span>
+      </label>
+      <span>🌙</span>
     </div>
   </div>
-
-  <div class="sec">
-    <div class="sec-title">⭐ Noahs Core Watchlist Matrix</div>
-    <div class="sec-sub">Strategische Kerninvestments und Überwachungspositionen. Sortierbar durch Klick auf die Spaltenköpfe.</div>
-    <div class="tw">
-      <table class="dt" id="tbl-wl">
-        <thead>
-          <tr>
-            <th data-col="Ticker">Ticker</th>
-            <th data-col="Unternehmen">Unternehmen</th>
-            <th data-col="Sektor">Sektor</th>
-            <th data-col="Marktkapitalisierung_Mrd">Mkt Cap (Mrd.)</th>
-            <th data-col="KGV">KGV</th>
-            <th data-col="KGV_Forward">KGV Fwd.</th>
-            <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
-            <th data-col="PEG">PEG</th>
-            <th data-col="Analyst_Empfehlung">Analyst Rating</th>
-            <th data-col="Gewinnmarge_Pct">Gewinnmarge</th>
-          </tr>
-        </thead>
-        <tbody id="tb-wl"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="ftr">
-    Duisburg Analytica Premium Terminal · Proprietäre Analytics Engine · Entwickelt von <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank">Noah Schulz</a>
-  </div>
-
 </div>
 
-<script>
+<!-- MARKTÜBERSICHT -->
+<div class="sec">
+  <div class="sec-title">🌍 Marktübersicht</div>
+  <div class="mg">
+    <div class="mc"><div class="mv" id="mv-p"></div><div class="ml">Ø Perf. 1M</div></div>
+    <div class="mc"><div class="mv" id="mv-pp"></div><div class="ml">Im Plus (1M)</div></div>
+    <div class="mc"><div class="mv c-pos" id="mv-ov"></div><div class="ml">Überverkauft (RSI&lt;30)</div></div>
+    <div class="mc"><div class="mv c-neg" id="mv-ob"></div><div class="ml">Überkauft (RSI&gt;70)</div></div>
+    <div class="mc"><div class="mv" id="mv-n"></div><div class="ml">Aktien analysiert</div></div>
+  </div>
+</div>
+
+<!-- WATCHLIST -->
+<div class="sec">
+  <div class="sec-title">⭐ Noahs Aktien-Watchlist</div>
+  <div class="sec-sub">
+    Analyst-Skala: <strong style="color:var(--pos)">1,0 = Strong Buy</strong> &nbsp;·&nbsp;
+    <strong style="color:var(--pos)">2,0 = Buy</strong> &nbsp;·&nbsp;
+    <strong style="color:var(--tx3)">3,0 = Hold</strong> &nbsp;·&nbsp;
+    <strong style="color:var(--neg)">4,0 = Sell</strong> &nbsp;·&nbsp;
+    <strong style="color:var(--neg)">5,0 = Strong Sell</strong>
+  </div>
+  <div class="tw">
+    <table class="dt" id="tbl-wl">
+      <thead><tr>
+        <th data-col="Ticker">Ticker</th>
+        <th data-col="Unternehmen">Unternehmen</th>
+        <th data-col="Sektor">Sektor</th>
+        <th data-col="Marktkapitalisierung_Mrd">Mkt Cap (Mrd.)</th>
+        <th data-col="Gewinn_Mrd">Gewinn (Mrd.)</th>
+        <th data-col="KGV">KGV</th>
+        <th data-col="KGV_Forward">KGV Fwd.</th>
+        <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
+        <th data-col="PEG">PEG</th>
+        <th data-col="Analyst_Empfehlung">Analyst (1–5)</th>
+        <th data-col="Gewinnmarge_Pct">Gewinnmarge</th>
+      </tr></thead>
+      <tbody id="tb-wl"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- QUALITY SCREEN -->
+<div class="sec">
+  <div class="sec-title">🔬 Quality &amp; Growth Screen</div>
+  <div class="sec-sub">
+    Analyst: <strong>1,0 = Strong Buy</strong> · <strong>5,0 = Strong Sell</strong> &nbsp;·&nbsp;
+    Upside = Abstand zum Analystenkursziel
+  </div>
+  <div class="fb">
+    <div class="fg"><span class="fl">KGV Fwd. (max)</span><input class="fi" type="number" id="f1" value="40"></div>
+    <div class="fg"><span class="fl">Mkt Cap Mrd. (min)</span><input class="fi" type="number" id="f2" placeholder="z.B. 1"></div>
+    <div class="fg"><span class="fl">EPS 5J % (min)</span><input class="fi" type="number" id="f3" value="10"></div>
+    <div class="fg"><span class="fl">PEG (max)</span><input class="fi" type="number" id="f4" placeholder="z.B. 3"></div>
+    <div class="fg"><span class="fl">Gewinnmarge % (min)</span><input class="fi" type="number" id="f6" value="10"></div>
+    <button class="fr" onclick="resetF()">↺ Reset</button>
+  </div>
+  <div class="tw">
+    <table class="dt" id="tbl-qs">
+      <thead><tr>
+        <th data-col="Ticker">Ticker</th>
+        <th data-col="Unternehmen">Unternehmen</th>
+        <th data-col="Sektor">Sektor</th>
+        <th data-col="Marktkapitalisierung_Mrd">Mkt Cap</th>
+        <th data-col="KGV_Forward">KGV Fwd.</th>
+        <th data-col="EPS_naechste_5J_Pct">EPS 5J %</th>
+        <th data-col="Gewinnmarge_Pct">Gewinnmarge</th>
+        <th data-col="PEG">PEG</th>
+        <th data-col="Analyst_Empfehlung">Analyst (1–5)</th>
+        <th data-col="Analyst_Upside_Pct">Upside %</th>
+      </tr></thead>
+      <tbody id="tb-qs"></tbody>
+    </table>
+  </div>
+  <div class="pg" id="pg-qs"></div>
+</div>
+
+<!-- DOTPLOT -->
+<div class="sec">
+  <div class="sec-title">📊 Univariater Dotplot</div>
+  <div class="mt-wrap">
+    <div class="mt-grp" id="mt-grp">
+      <button class="mt-btn active" data-m="KGV">KGV</button>
+      <button class="mt-btn" data-m="KGV_Forward">Forward KGV</button>
+      <button class="mt-btn" data-m="PEG">PEG</button>
+      <button class="mt-btn" data-m="EPS_naechste_5J_Pct">EPS 5J %</button>
+      <button class="mt-btn" data-m="Perf_Monat_Pct">Perf. 1M</button>
+      <button class="mt-btn" data-m="Perf_Jahr_Pct">Perf. 1J</button>
+    </div>
+    <select class="fs" id="dot-sf" style="width:auto;min-width:170px">
+      <option value="">Alle Sektoren</option>
+    </select>
+  </div>
+  <div class="cc"><canvas id="dotC" height="290"></canvas></div>
+  <div class="ct" id="dot-tt"></div>
+</div>
+
+<!-- SCATTER -->
+<div class="sec">
+  <div class="sec-title">📈 KGV vs. EPS-Wachstum 5J</div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <select class="fs" id="sc-sf" style="width:auto;min-width:170px">
+      <option value="">Alle Sektoren</option>
+    </select>
+  </div>
+  <div class="cc"><canvas id="scC" height="300"></canvas></div>
+  <div class="ct" id="sc-tt"></div>
+</div>
+
+<!-- RADAR -->
+<div class="sec">
+  <div class="sec-title">🎯 Aktien-Score &amp; Radar</div>
+  <div class="score-info">
+    <strong>Score-Methodik (Growth-Investor-Perspektive):</strong><br>
+    EPS Wachstum 5J <strong>30 %</strong> &nbsp;·&nbsp;
+    Gewinnmarge <strong>20 %</strong> &nbsp;·&nbsp;
+    Forward KGV <strong>20 %</strong> &nbsp;·&nbsp;
+    KGV <strong>15 %</strong> &nbsp;·&nbsp;
+    PEG <strong>10 %</strong> &nbsp;·&nbsp;
+    Analyst <strong>5 %</strong><br>
+    Normierung per Perzentil-Rang (0–100). Score = gewichteter Durchschnitt.
+  </div>
+  <div class="sw">
+    <input class="si" id="rs" type="text"
+           placeholder="🔍 Unternehmen suchen – z.B. NVIDIA oder NV ...">
+    <div class="al" id="ac"></div>
+  </div>
+  <div id="rw">
+    <div class="rt" id="rt"></div>
+    <div class="rs" id="rsub"></div>
+    <canvas id="rc" style="display:block;margin:16px auto 0"></canvas>
+  </div>
+</div>
+
+<div class="footer">
+  Keine Anlageberatung – Newsletter erstellt von
+  <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank">Noah Schulz</a>
+</div>
+
+
 """
-    # Füge injizierte Python-Daten hinzu
-    html += js_data
-    
-    # Füge JavaScript Logik-Block an
-    html += """
+
+    js = """
 // ============================================================
-// CORE DATA INITIALIZATION & FORMATTING
+// INIT
 // ============================================================
 document.getElementById('hdr-datum').textContent = DATUM;
 
-function fDE(v, d=2, sfx='') {
-  if (v === '' || v == null || isNaN(+v)) return '–';
-  return (+v).toLocaleString('de-DE', {minimumFractionDigits: d, maximumFractionDigits: d}) + sfx;
+// Marktübersicht befüllen
+function fDE(v,d=2,sfx=''){
+  if(v===''||v==null||isNaN(+v))return'–';
+  return(+v).toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d})+sfx;
 }
-function fP(v, d=1) { return fDE(v, d, '%'); }
-function fM(v, d=1) { return fDE(v, d, ' Mrd.'); }
-function sgn(v, d=1) {
-  if (v === '' || isNaN(+v)) return '–';
-  const n = +v; return (n >= 0 ? '+' : '−') + fDE(Math.abs(n), d, '%');
+function fP(v,d=1){return fDE(v,d,'%')}
+function fM(v,d=1){return fDE(v,d,' Mrd.')}
+function sgn(v,d=1){
+  if(v===''||isNaN(+v))return'–';
+  const n=+v;return(n>=0?'+':'−')+fDE(Math.abs(n),d,'%');
 }
-defCol = '#38bdf8';
+function cc(v){if(v===''||isNaN(+v))return'';return +v>=0?'td-pos':'td-neg';}
+function cv(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
 
-// Setze Kopfzeilen-Karten Werte
-const perfEl = document.getElementById('mv-p');
-perfEl.textContent = sgn(AVG_PERF);
-perfEl.style.color = AVG_COL;
-document.getElementById('mv-pp').textContent = fDE(POS_PCT, 1, '%');
-document.getElementById('mv-ov').textContent = fDE(N_OVER, 0);
-document.getElementById('mv-ob').textContent = fDE(N_OVER2, 0);
-document.getElementById('mv-n').textContent = fDE(N_GES, 0);
-
-function cv(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
+const perfEl=document.getElementById('mv-p');
+perfEl.textContent=sgn(AVG_PERF);
+perfEl.style.color=AVG_COL;
+document.getElementById('mv-pp').textContent=fDE(POS_PCT,1,'%');
+document.getElementById('mv-ov').textContent=fDE(N_OVER,0);
+document.getElementById('mv-ob').textContent=fDE(N_OVER2,0);
+document.getElementById('mv-n').textContent=fDE(N_GES,0);
 
 // ============================================================
-// OPTIMIERTE DESIGN-FARBSKALA FÜR STRATEGISCHE RATING BADGES
+// THEME TOGGLE
 // ============================================================
-function getRecBadge(v) {
-  if (v === '' || v == null || isNaN(+v)) return '–';
-  const val = +v;
-  // Dunkelgrün, Hellgrün, Gelb/Grau, Orange, Rot Stufen
-  if (val <= 1.5) return `<span class="badge-rec rec-sb">Strong Buy</span>`;
-  if (val <= 2.5) return `<span class="badge-rec rec-b">Buy</span>`;
-  if (val <= 3.5) return `<span class="badge-rec rec-h">Hold</span>`;
-  if (val <= 4.5) return `<span class="badge-rec rec-s">Sell</span>`;
-  return `<span class="badge-rec rec-ss">Strong Sell</span>`;
+const thmEl=document.getElementById('thm');
+function applyTheme(light){
+  document.documentElement.classList.toggle('light',light);
+  localStorage.setItem('theme',light?'light':'dark');
+  setTimeout(()=>{renderDot();renderSC();},50);
 }
-
-// ============================================================
-// THEME SWITCHING WITH CANVAS REDRAW
-// ============================================================
-const thmEl = document.getElementById('thm');
-function applyTheme(light) {
-  document.documentElement.classList.toggle('light', light);
-  localStorage.setItem('theme', light ? 'light' : 'dark');
-  setTimeout(() => { renderDot(); renderSC(); if(currentRadarData) _paintRadar(currentRadarData); }, 60);
-}
-thmEl.addEventListener('change', () => applyTheme(thmEl.checked));
-(function() {
-  if (localStorage.getItem('theme') === 'light') {
+thmEl.addEventListener('change',()=>applyTheme(thmEl.checked));
+(function(){
+  if(localStorage.getItem('theme')==='light'){
     document.documentElement.classList.add('light');
-    thmEl.checked = true;
+    thmEl.checked=true;
   }
 })();
 
-// Injiziere Sektorenoptionen
-['dot-sf', 'sc-sf'].forEach(id => {
-  const s = document.getElementById(id);
-  SEK.forEach(sk => { const o = document.createElement('option'); o.value = sk; o.textContent = sk; s.appendChild(o); });
+// ============================================================
+// SEKTOR-SELECTS
+// ============================================================
+['dot-sf','sc-sf'].forEach(id=>{
+  const s=document.getElementById(id);
+  SEK.forEach(sk=>{const o=document.createElement('option');o.value=sk;o.textContent=sk;s.appendChild(o);});
 });
 
 // ============================================================
-// FLEXIBLE SORTIERUNG FÜR TABELLEN-WIDGETS
+// SORTIERBARE TABELLEN
 // ============================================================
-function mkTbl(tblId, tbId, dataGetFn, renderRow, defCol='', defAsc=false) {
-  const tbl = document.getElementById(tblId);
-  const tb = document.getElementById(tbId);
-  let st = { c: defCol, a: defAsc };
-
-  function sortAndDraw() {
-    const workingData = dataGetFn();
-    if (st.c) {
-      workingData.sort((a, b) => {
-        let av = a[st.c]; let bv = b[st.c];
-        if (av === '' || av == null) return 1;
-        if (bv === '' || bv == null) return -1;
-        return st.a ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
-      });
-    }
-    tb.innerHTML = workingData.map(renderRow).join('');
+function mkTbl(tblId,tbId,data,renderRow,defCol='',defAsc=false){
+  const tbl=document.getElementById(tblId);
+  const tb=document.getElementById(tbId);
+  let st={c:defCol,a:defAsc};
+  function sort(){
+    if(!st.c)return;
+    data.sort((a,b)=>{
+      const av=isNaN(+a[st.c])?String(a[st.c]||''):+a[st.c];
+      const bv=isNaN(+b[st.c])?String(b[st.c]||''):+b[st.c];
+      return st.a?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
+    });
   }
-
-  tbl.querySelectorAll('th[data-col]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.col;
-      if (st.c === col) st.a = !st.a; else { st.c = col; st.a = true; }
-      tbl.querySelectorAll('th').forEach(t => t.classList.remove('asc', 'desc'));
-      th.classList.add(st.a ? 'asc' : 'desc');
-      sortAndDraw();
+  function draw(rows){tb.innerHTML=rows.map(renderRow).join('');}
+  tbl.querySelectorAll('th[data-col]').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const col=th.dataset.col;
+      if(st.c===col)st.a=!st.a;else{st.c=col;st.a=true;}
+      tbl.querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
+      th.classList.add(st.a?'asc':'desc');
+      sort();draw(data);
     });
   });
-  
-  return sortAndDraw;
+  if(st.c){const th=tbl.querySelector(`th[data-col="${st.c}"]`);if(th)th.classList.add(st.a?'asc':'desc');}
+  sort();draw(data);
 }
 
-// ============================================================
-// INTERAKTIVER CORE RADAR PLOT MIT ORIGINAL-METRIK OVERLAY
-// ============================================================
-let currentRadarData = null;
-let radarScales = null;
+mkTbl('tbl-wl','tb-wl',[...WL],r=>`<tr>
+  <td class="tp">${r.Ticker||'–'}</td>
+  <td class="tn">${(r.Unternehmen||'–').substring(0,24)}</td>
+  <td class="ts">${(r.Sektor||'–').substring(0,18)}</td>
+  <td style="text-align:right">${fM(r.Marktkapitalisierung_Mrd)}</td>
+  <td style="text-align:right">${fM(r.Gewinn_Mrd,2)}</td>
+  <td style="text-align:right">${fDE(r.KGV,1)}</td>
+  <td style="text-align:right">${fDE(r.KGV_Forward,1)}</td>
+  <td style="text-align:right" class="${cc(r.EPS_naechste_5J_Pct)}">${fP(r.EPS_naechste_5J_Pct)}</td>
+  <td style="text-align:right">${fDE(r.PEG,2)}</td>
+  <td style="text-align:right">${fDE(r.Analyst_Empfehlung,2)}</td>
+  <td style="text-align:right" class="${cc(r.Gewinnmarge_Pct)}">${fP(r.Gewinnmarge_Pct)}</td>
+</tr>`,'Marktkapitalisierung_Mrd',false);
 
-function loadRadar(ticker) {
-  const item = SD.find(d => d.Ticker === ticker);
-  if (!item) {
-    // Falls das Unternehmen nur im NA-Set existiert und unvollständig ist
-    const rawItem = QS_DATA.find(d => d.Ticker === ticker);
-    if(rawItem) {
-      alert("Unternehmen " + ticker + " besitzt unzureichende Datenpunkte für eine vollständige mathematische Indizierung.");
-    }
-    return;
+// ============================================================
+// QUALITY SCREEN
+// ============================================================
+let qPage=1;const PS=10;
+let qSort={c:'EPS_naechste_5J_Pct',a:false};
+
+function getQF(){
+  const kmax=+document.getElementById('f1').value||Infinity;
+  const mmin=+document.getElementById('f2').value||-Infinity;
+  const emin=+document.getElementById('f3').value||-Infinity;
+  const pmax=+document.getElementById('f4').value||Infinity;
+  const gmin=+document.getElementById('f6').value||-Infinity;
+  return QS.filter(r=>
+    (+r.KGV_Forward||Infinity)<=kmax&&
+    (+r.Marktkapitalisierung_Mrd||-Infinity)>=mmin&&
+    (+r.EPS_naechste_5J_Pct||-Infinity)>=emin&&
+    (+r.PEG||Infinity)<=pmax&&
+    (+r.Gewinnmarge_Pct||-Infinity)>=gmin);
+}
+function renderQ(){
+  let data=getQF();
+  data.sort((a,b)=>{
+    const c=qSort.c;
+    const av=isNaN(+a[c])?String(a[c]||''):+a[c];
+    const bv=isNaN(+b[c])?String(b[c]||''):+b[c];
+    return qSort.a?(av<bv?-1:av>bv?1:0):(av>bv?-1:av<bv?1:0);
+  });
+  const tp=Math.ceil(data.length/PS)||1;
+  if(qPage>tp)qPage=1;
+  const sl=data.slice((qPage-1)*PS,qPage*PS);
+  document.getElementById('tb-qs').innerHTML=sl.map(r=>`<tr>
+    <td class="tp">${r.Ticker||'–'}</td>
+    <td class="tn">${(r.Unternehmen||'–').substring(0,24)}</td>
+    <td class="ts">${(r.Sektor||'–').substring(0,18)}</td>
+    <td style="text-align:right">${fM(r.Marktkapitalisierung_Mrd)}</td>
+    <td style="text-align:right">${fDE(r.KGV_Forward,1)}</td>
+    <td style="text-align:right" class="${cc(r.EPS_naechste_5J_Pct)}">${fP(r.EPS_naechste_5J_Pct)}</td>
+    <td style="text-align:right" class="${cc(r.Gewinnmarge_Pct)}">${fP(r.Gewinnmarge_Pct)}</td>
+    <td style="text-align:right">${fDE(r.PEG,2)}</td>
+    <td style="text-align:right">${fDE(r.Analyst_Empfehlung,2)}</td>
+    <td style="text-align:right" class="${cc(r.Analyst_Upside_Pct)}">${sgn(r.Analyst_Upside_Pct)}</td>
+  </tr>`).join('');
+  const pg=document.getElementById('pg-qs');pg.innerHTML='';
+  const sp=document.createElement('span');sp.className='pi';
+  const s=(qPage-1)*PS+1,e=Math.min(qPage*PS,data.length);
+  sp.textContent=`${s}–${e} von ${data.length}`;pg.appendChild(sp);
+  for(let i=1;i<=tp;i++){
+    const b=document.createElement('button');b.className='pb'+(i===qPage?' active':'');
+    b.textContent=i;b.onclick=(p=>()=>{qPage=p;renderQ();})(i);pg.appendChild(b);
   }
-  document.getElementById('radar-placeholder').style.display = 'none';
-  document.getElementById('radar-wrapper').style.display = 'block';
-  
-  currentRadarData = item;
-  
-  const sc = item.Score;
-  let scCol = 'var(--ac)';
-  if (sc >= 75) scCol = 'var(--pos)'; else if (sc < 45) scCol = 'var(--neg)';
-  
-  document.getElementById('rtitle').innerHTML = `<a class="ticker-link" href="https://finviz.com/quote.ashx?t=${item.Ticker}" target="_blank">${item.Unternehmen} (${item.Ticker})</a>`;
-  document.getElementById('rsub').innerHTML = `Quant-Gesamtscore: <span style="color:${scCol};font-weight:800;font-size:19px">${sc}/100</span> &nbsp;·&nbsp; Rang <strong>#${item.Rang}</strong> von ${SD.length}`;
-  
-  _paintRadar(item, sc, scCol);
+}
+document.getElementById('tbl-qs').querySelectorAll('th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const c=th.dataset.col;
+    if(qSort.c===c)qSort.a=!qSort.a;else{qSort.c=c;qSort.a=false;}
+    document.getElementById('tbl-qs').querySelectorAll('th').forEach(t=>t.classList.remove('asc','desc'));
+    th.classList.add(qSort.a?'asc':'desc');qPage=1;renderQ();
+  });
+});
+['f1','f2','f3','f4','f6'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{qPage=1;renderQ();});
+});
+function resetF(){
+  document.getElementById('f1').value=40;
+  ['f2','f4'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f3').value=10;document.getElementById('f6').value=10;
+  qPage=1;renderQ();
+}
+renderQ();
+
+// ============================================================
+// DOTPLOT – 6 METRIKEN
+// ============================================================
+const METRICS={
+  KGV:               {label:'KGV (Trailing)',       col:'KGV',               clr:'rgba(77,184,255,0.6)',  lc:'#4DB8FF',cap:[0,150],  pct:false,dec:1,sfx:''},
+  KGV_Forward:       {label:'Forward KGV',          col:'KGV_Forward',       clr:'rgba(45,212,160,0.6)',  lc:'#2DD4A0',cap:[0,100],  pct:false,dec:1,sfx:''},
+  PEG:               {label:'PEG Ratio',            col:'PEG',               clr:'rgba(255,179,71,0.6)',  lc:'#FFB347',cap:[0,5],    pct:false,dec:2,sfx:''},
+  EPS_naechste_5J_Pct:{label:'EPS Wachstum 5J (%)',col:'EPS_naechste_5J_Pct',clr:'rgba(164,120,255,0.6)',lc:'#A478FF',cap:[-20,60], pct:true, dec:1,sfx:'%'},
+  Perf_Monat_Pct:    {label:'Performance 1M (%)',   col:'Perf_Monat_Pct',    clr:'rgba(255,92,114,0.6)', lc:'#FF5C72',cap:[-60,120],pct:true, dec:1,sfx:'%'},
+  Perf_Jahr_Pct:     {label:'Performance 1J (%)',   col:'Perf_Jahr_Pct',     clr:'rgba(255,215,0,0.6)',  lc:'#FFD700',cap:[-90,400],pct:true, dec:1,sfx:'%'},
+};
+let curM='KGV';
+let dotScales={};
+
+document.getElementById('mt-grp').querySelectorAll('.mt-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    curM=btn.dataset.m;
+    document.getElementById('mt-grp').querySelectorAll('.mt-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('dot-tt').style.display='none';
+    renderDot();
+  });
+});
+document.getElementById('dot-sf').addEventListener('change',renderDot);
+
+function renderDot(){
+  const cfg=METRICS[curM];
+  const sek=document.getElementById('dot-sf').value;
+  const col=cfg.col;
+
+  const data=PD.filter(d=>{
+    const v=+d[col];
+    if(isNaN(v)||d[col]==='')return false;
+    if(sek&&d.Sektor!==sek)return false;
+    return v>=cfg.cap[0]&&v<=cfg.cap[1];
+  });
+  const vals=data.map(d=>+d[col]);
+  if(!vals.length)return;
+
+  const posOnly=['KGV','KGV_Forward','PEG'];
+  const sv=posOnly.includes(col)?vals.filter(v=>v>0):vals;
+  const avg=sv.reduce((a,b)=>a+b,0)/(sv.length||1);
+  const sorted_sv=[...sv].sort((a,b)=>a-b);
+  const med=sorted_sv[Math.floor(sorted_sv.length/2)];
+
+  const cnv=document.getElementById('dotC');
+  const ctx=cnv.getContext('2d');
+  const W=cnv.parentElement.offsetWidth||820,H=290;
+  cnv.width=W;cnv.height=H;
+
+  const bgC=cv('--bg2')||'#0D1520';
+  const grC=cv('--brd')||'#1A2E45';
+  const txC=cv('--tx4')||'#5A7A95';
+
+  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,H);
+  const P={t:32,r:20,b:40,l:60};
+  const pw=W-P.l-P.r,ph=H-P.t-P.b;
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  const yMn=mn-rng*.08,yMx=mx+rng*.08;
+  const ySc=v=>P.t+ph-((v-yMn)/(yMx-yMn))*ph;
+
+  for(let g=0;g<=5;g++){
+    const v=yMn+(yMx-yMn)*g/5,y=ySc(v);
+    ctx.strokeStyle=grC;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+pw,y);ctx.stroke();
+    ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';ctx.textAlign='right';
+    ctx.fillText(fDE(v,cfg.dec)+cfg.sfx,P.l-5,y+3);
+  }
+  if(cfg.pct&&yMn<0&&yMx>0){
+    const y0=ySc(0);ctx.strokeStyle=txC;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(P.l,y0);ctx.lineTo(P.l+pw,y0);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  const sorted=[...data].sort((a,b)=>+a[col]-+b[col]);
+  dotScales={sorted,col,ySc,pw,P,cfg};
+
+  sorted.forEach((d,i)=>{
+    const x=P.l+(i/Math.max(sorted.length-1,1))*pw;
+    const y=ySc(+d[col]);
+    ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);
+    ctx.fillStyle=cfg.clr;ctx.fill();
+  });
+
+  function hl(val,lbl,dash){
+    if(isNaN(val))return;
+    const y=ySc(val);
+    ctx.strokeStyle=cfg.lc;ctx.lineWidth=1.8;ctx.setLineDash(dash||[]);
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+pw,y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=cfg.lc;ctx.font='bold 9px Segoe UI,sans-serif';ctx.textAlign='left';
+    ctx.fillText(lbl+': '+fDE(val,cfg.dec)+cfg.sfx,P.l+4,y-3);
+  }
+  hl(avg,'Ø',[]);
+  hl(med,'Median',[6,4]);
+
+  ctx.fillStyle=cfg.lc;ctx.font='bold 11px Segoe UI,sans-serif';ctx.textAlign='center';
+  ctx.fillText(cfg.label,P.l+pw/2,P.t-10);
+  const note=posOnly.includes(col)?` | Ø/Median: ${sv.length} pos. Werte`:'';
+  ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';
+  ctx.fillText(`${data.length} Unternehmen | ${sek||'Alle Sektoren'}${note} | Klick für Details`,P.l+pw/2,H-5);
 }
 
-function _paintRadar(d, sc, scCol) {
-  const cnv = document.getElementById('rc');
-  const ctx = cnv.getContext('2d');
-  const W = Math.min(cnv.parentElement.offsetWidth || 400, 420);
-  cnv.width = W; cnv.height = W;
-  ctx.clearRect(0, 0, W, W);
+document.getElementById('dotC').addEventListener('click',function(e){
+  if(!dotScales.sorted||!dotScales.sorted.length)return;
+  const rect=this.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(this.width/rect.width);
+  const my=(e.clientY-rect.top)*(this.height/rect.height);
+  const {sorted,col,ySc,pw,P,cfg}=dotScales;
+  let cl=null,md=Infinity;
+  sorted.forEach((d,i)=>{
+    const x=P.l+(i/Math.max(sorted.length-1,1))*pw;
+    const y=ySc(+d[col]);
+    const dist=Math.sqrt((x-mx)**2+(y-my)**2);
+    if(dist<md){md=dist;cl=d;}
+  });
+  const tt=document.getElementById('dot-tt');
+  if(md<20&&cl){
+    tt.style.display='block';
+    const ex=[
+      cl.KGV            ?`KGV: <strong>${fDE(cl.KGV,1)}</strong>`:'',
+      cl.KGV_Forward    ?`Fwd KGV: <strong>${fDE(cl.KGV_Forward,1)}</strong>`:'',
+      cl.EPS_naechste_5J_Pct!==''?`EPS 5J: <strong>${fDE(cl.EPS_naechste_5J_Pct,1)}%</strong>`:'',
+      cl.PEG            ?`PEG: <strong>${fDE(cl.PEG,2)}</strong>`:'',
+      cl.Perf_Monat_Pct!==''?`Perf 1M: <strong>${fDE(cl.Perf_Monat_Pct,1)}%</strong>`:'',
+      cl.Perf_Jahr_Pct !==''?`Perf 1J: <strong>${fDE(cl.Perf_Jahr_Pct,1)}%</strong>`:'',
+    ].filter(Boolean).join(' &nbsp;|&nbsp; ');
+    tt.innerHTML=`
+      <div style="margin-bottom:5px">
+        <strong style="color:var(--ac);font-size:13px">${cl.Ticker}</strong>
+        &nbsp;<span style="color:var(--tx)">${cl.Unternehmen||''}</span>
+        &nbsp;<span style="color:var(--tx3);font-size:11px">(${cl.Sektor||''})</span>
+      </div>
+      <div style="font-size:11px;color:var(--tx2)">${ex}</div>
+      <div style="margin-top:4px;font-size:10px;color:var(--ac)">
+        ${cfg.label}: <strong style="font-size:13px">${fDE(+cl[col],cfg.dec)}${cfg.sfx}</strong>
+      </div>`;
+  }else{tt.style.display='none';}
+});
 
-  const cx = W / 2, cy = W / 2, R = W * 0.28;
-  const lbls = ['EPS 5J Wachstum', 'Gewinnmarge', 'Forward KGV', 'KGV', 'PEG', 'Analyst'];
-  const keys = ['S_EPS5', 'S_Marge', 'S_FKGV', 'S_KGV', 'S_PEG', 'S_Analyst'];
-  const vals = keys.map(k => Math.max(0, Math.min(100, +d[k] || 0)));
-  const N = lbls.length;
+// ============================================================
+// SCATTER
+// ============================================================
+let scSc={};
+function renderSC(){
+  const sek=document.getElementById('sc-sf').value;
+  const data=PD.filter(d=>(!sek||d.Sektor===sek)&&+d.KGV>0&&+d.KGV<100&&+d.EPS_naechste_5J_Pct>-50&&+d.EPS_naechste_5J_Pct<100);
+  scSc={data};
+  const cnv=document.getElementById('scC');
+  const ctx=cnv.getContext('2d');
+  const W=cnv.parentElement.offsetWidth||820,H=300;
+  cnv.width=W;cnv.height=H;
+  const bgC=cv('--bg2')||'#0D1520';
+  const grC=cv('--brd')||'#1A2E45';
+  const txC=cv('--tx4')||'#5A7A95';
+  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,H);
+  if(!data.length)return;
+  const P={t:28,r:20,b:48,l:54};
+  const pw=W-P.l-P.r,ph=H-P.t-P.b;
+  const xv=data.map(d=>+d.KGV),yv=data.map(d=>+d.EPS_naechste_5J_Pct);
+  const xmx=Math.min(Math.ceil(Math.max(...xv)*1.1/10)*10,100);
+  const ymn=Math.min(Math.floor(Math.min(...yv)/5)*5,0);
+  const ymx=Math.ceil(Math.max(...yv)*1.1/5)*5;
+  const xs=v=>P.l+(v/xmx)*pw;
+  const ys=v=>P.t+ph-((v-ymn)/(ymx-ymn))*ph;
+  scSc={data,xs,ys};
+  for(let i=0;i<=5;i++){
+    const xval=xmx*i/5,yval=ymn+(ymx-ymn)*i/5;
+    ctx.strokeStyle=grC;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(xs(xval),P.t);ctx.lineTo(xs(xval),P.t+ph);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(P.l,ys(yval));ctx.lineTo(P.l+pw,ys(yval));ctx.stroke();
+    ctx.fillStyle=txC;ctx.font='9px Segoe UI,sans-serif';
+    ctx.textAlign='center';ctx.fillText(fDE(xval,0),xs(xval),P.t+ph+13);
+    ctx.textAlign='right';ctx.fillText(fDE(yval,0)+'%',P.l-4,ys(yval)+3);
+  }
+  const SC={Technology:'#4DB8FF',Healthcare:'#2DD4A0',Financials:'#FFB347',
+    'Consumer Cyclical':'#FF7BAC',Energy:'#FFD700',Industrials:'#A78BFA',
+    'Consumer Defensive':'#6EE7B7',Utilities:'#93C5FD',
+    'Communication Services':'#F472B6','Basic Materials':'#D4A574','Real Estate':'#FCA5A5'};
+  data.forEach(d=>{
+    ctx.beginPath();ctx.arc(xs(+d.KGV),ys(+d.EPS_naechste_5J_Pct),4,0,Math.PI*2);
+    ctx.fillStyle=(SC[d.Sektor]||'#4DB8FF')+'99';ctx.fill();
+  });
+  ctx.fillStyle=txC;ctx.font='10px Segoe UI,sans-serif';ctx.textAlign='center';
+  ctx.fillText('KGV (Trailing)',P.l+pw/2,H-5);
+  ctx.save();ctx.translate(14,P.t+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.fillText('EPS-Wachstum 5J (%)',0,0);ctx.restore();
+  ctx.fillText(`${data.length} Unternehmen | ${sek||'Alle Sektoren'}`,P.l+pw/2,P.t-8);
+}
+document.getElementById('scC').addEventListener('mousemove',function(e){
+  if(!scSc.data||!scSc.data.length)return;
+  const rect=this.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(this.width/rect.width);
+  const my=(e.clientY-rect.top)*(this.height/rect.height);
+  const {data,xs,ys}=scSc;
+  let cl=null,md=Infinity;
+  data.forEach(d=>{
+    const dx=xs(+d.KGV)-mx,dy=ys(+d.EPS_naechste_5J_Pct)-my;
+    const dist=Math.sqrt(dx*dx+dy*dy);if(dist<md){md=dist;cl=d;}
+  });
+  const tt=document.getElementById('sc-tt');
+  if(md<18&&cl){
+    tt.style.display='block';
+    tt.innerHTML=`<strong style="color:var(--ac)">${cl.Ticker}</strong> – ${cl.Unternehmen||''}
+      &nbsp;|&nbsp; KGV: <strong>${fDE(cl.KGV,1)}</strong>
+      &nbsp;|&nbsp; EPS 5J: <strong>${fDE(cl.EPS_naechste_5J_Pct,1)}%</strong>
+      &nbsp;|&nbsp; <span style="color:var(--tx3)">${cl.Sektor||''}</span>`;
+  }else{tt.style.display='none';}
+});
+document.getElementById('sc-sf').addEventListener('change',renderSC);
 
-  // Hintergrund-Netzlinien zeichnen
-  const steps = 4;
-  for (let j = steps; j > 0; j--) {
-    const r = R * (j / steps);
-    ctx.strokeStyle = cv('--brd') || '#16294a';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = 0; i < N; i++) {
-      const a = (i * Math.PI * 2) / N - Math.PI / 2;
-      ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+// ============================================================
+// RADAR
+// ============================================================
+const rsEl=document.getElementById('rs');
+rsEl.addEventListener('input',onRS);
+rsEl.addEventListener('blur',()=>setTimeout(hideAC,200));
+
+function onRS(){
+  const q=rsEl.value.toLowerCase().trim();
+  const ac=document.getElementById('ac');
+  if(q.length<1){ac.style.display='none';return;}
+  const m=SD.filter(d=>d.Ticker.toLowerCase().includes(q)||(d.Unternehmen||'').toLowerCase().includes(q)).slice(0,8);
+  if(!m.length){ac.style.display='none';return;}
+  ac.innerHTML=m.map(d=>`<div class="ai" onclick="selR('${d.Ticker}')">
+    <span><span class="ai-tk">${d.Ticker}</span>${d.Unternehmen||''}</span>
+    <span class="ai-sc">Score: ${d.Score} | Rang ${d.Rang}</span>
+  </div>`).join('');
+  ac.style.display='block';
+}
+function hideAC(){document.getElementById('ac').style.display='none';}
+function selR(tk){
+  const d=SD.find(r=>r.Ticker===tk);if(!d)return;
+  rsEl.value=d.Ticker+' – '+(d.Unternehmen||'');
+  hideAC();drawRadar(d);
+}
+function drawRadar(d){
+  const rw=document.getElementById('rw');
+  const sc=+d.Score;
+  const scCol=sc>=70?'#2DD4A0':sc>=45?'#FFB347':'#FF5C72';
+  document.getElementById('rt').textContent=`${d.Rang}. ${d.Unternehmen} (${d.Ticker})`;
+  document.getElementById('rsub').innerHTML=
+    `Score: <span style="color:${scCol};font-weight:700;font-size:20px">${sc}/100</span>
+     &nbsp;·&nbsp; Rang <strong>${d.Rang}</strong> von ${SD.length}`;
+  rw.style.display='block';
+  requestAnimationFrame(()=>_paintRadar(d,sc,scCol));
+}
+function _paintRadar(d,sc,scCol){
+  const cnv=document.getElementById('rc');
+  const ctx=cnv.getContext('2d');
+  const W=Math.min(cnv.parentElement.offsetWidth||420,440);
+  cnv.width=W;cnv.height=W;
+  ctx.clearRect(0,0,W,W);
+  const cx=W/2,cy=W/2,R=W*.30;
+  const lbls=['EPS 5J Wachstum','Gewinnmarge','Forward KGV','KGV','PEG','Analyst'];
+  const keys=['S_EPS5','S_Marge','S_FKGV','S_KGV','S_PEG','S_Analyst'];
+  const vals=keys.map(k=>Math.max(0,Math.min(100,+d[k]||0)));
+  const N=lbls.length;
+  const bgC=cv('--bg2')||'#0D1520';
+  const grC=cv('--brd')||'#1A2E45';
+  const txC=cv('--tx2')||'#C8D8E8';
+  const tx4C=cv('--tx4')||'#5A7A95';
+  ctx.fillStyle=bgC;ctx.fillRect(0,0,W,W);
+  for(let ring=1;ring<=5;ring++){
+    const r=R*ring/5;ctx.strokeStyle=grC;ctx.lineWidth=1;ctx.beginPath();
+    for(let i=0;i<=N;i++){
+      const a=(i/N)*Math.PI*2-Math.PI/2;
+      i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
     }
-    ctx.closePath();
-    ctx.fillStyle = j % 2 === 0 ? (cv('--bg4') || '#080f20') : (cv('--bg2') || '#0b1326');
-    ctx.fill();
-    ctx.stroke();
+    ctx.closePath();ctx.stroke();
+    ctx.fillStyle=tx4C;ctx.font='8px Segoe UI,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText((ring*20).toString(),cx+3,cy-r+4);
   }
-
-  // Achsen-Strahlen
-  ctx.strokeStyle = cv('--brd') || '#16294a';
-  for (let i = 0; i < N; i++) {
-    const a = (i * Math.PI * 2) / N - Math.PI / 2;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
-    ctx.stroke();
-    
-    // Labeling
-    const lx = cx + Math.cos(a) * (R + 22);
-    const ly = cy + Math.sin(a) * (R + 12);
-    ctx.fillStyle = cv('--tx2') || '#b5cbfa';
-    ctx.font = 'bold 11px Segoe UI,sans-serif';
-    ctx.textAlign = Math.abs(Math.cos(a)) < 0.1 ? 'center' : (Math.cos(a) > 0 ? 'left' : 'right');
-    ctx.fillText(lbls[i], lx, ly + 4);
+  for(let i=0;i<N;i++){
+    const a=(i/N)*Math.PI*2-Math.PI/2;ctx.strokeStyle=grC;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a));ctx.stroke();
   }
-
-  // Polygonzug des Scores zeichnen
-  ctx.strokeStyle = scCol;
-  ctx.lineWidth = 2.5;
-  ctx.fillStyle = 'rgba(' + (sc >= 75 ? '16,185,129' : (sc < 45 ? '244,63,94' : '56,189,248')) + ', 0.25)';
   ctx.beginPath();
-  
-  let vertexPoints = [];
-  for (let i = 0; i < N; i++) {
-    const a = (i * Math.PI * 2) / N - Math.PI / 2;
-    const r = R * (vals[i] / 100);
-    const vx = cx + Math.cos(a) * r;
-    const vy = cy + Math.sin(a) * r;
-    ctx.lineTo(vx, vy);
-    vertexPoints.push({x: vx, y: vy, idx: i});
-  }
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-
-  // Datenpunkte einzeichnen
-  vertexPoints.forEach(p => {
-    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-    ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = scCol; ctx.lineWidth = 2; ctx.stroke();
+  vals.forEach((v,i)=>{
+    const a=(i/N)*Math.PI*2-Math.PI/2,r=R*v/100;
+    i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
   });
-  
-  // Registriere globale Koordinaten für Tooltip-Abfrage
-  radarScales = { cx, cy, vertexPoints, rawData: d };
-}
-
-// HOVER MOUSE EVENT LISTENER FÜR DIE URSPRÜNGLICHEN ORIGINALEN KENNZAHLEN
-const radarCanvas = document.getElementById('rc');
-const radarTooltip = document.getElementById('radar-tt');
-
-radarCanvas.addEventListener('mousemove', (e) => {
-  if (!radarScales) return;
-  const rect = radarCanvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  
-  // Berechne Abstand zum Mittelpunkt
-  const dx = mx - radarScales.cx;
-  const dy = my - radarScales.cy;
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  
-  if (dist <= radarCanvas.width * 0.45) {
-    const rd = radarScales.rawData;
-    document.getElementById('r-tt-name').textContent = rd.Unternehmen;
-    document.getElementById('tt-eps').textContent = fP(rd.EPS_naechste_5J_Pct);
-    document.getElementById('tt-marge').textContent = fP(rd.Gewinnmarge_Pct);
-    document.getElementById('tt-fkgv').textContent = fDE(rd.KGV_Forward, 1);
-    document.getElementById('tt-kgv').textContent = fDE(rd.KGV, 1);
-    document.getElementById('tt-peg').textContent = fDE(rd.PEG, 2);
-    document.getElementById('tt-anl').textContent = fDE(rd.Analyst_Empfehlung, 2) + " / 5,0";
-    radarTooltip.style.display = 'block';
-  } else {
-    radarTooltip.style.display = 'none';
-  }
-});
-
-radarCanvas.addEventListener('mouseleave', () => {
-  radarTooltip.style.display = 'none';
-});
-
-// ============================================================
-// UNIVARIATES FACTOR-CLUSTER (NUR MEDIAN, MIT AUSREISSER-LOGIK)
-// ============================================================
-function renderDot() {
-  const col = document.getElementById('dot-col').value;
-  const sf = document.getElementById('dot-sf').value;
-  const showOutliers = document.getElementById('dot-outliers').value === 'yes';
-  
-  let data = SD.filter(d => d[col] !== '' && d[col] != null && !isNaN(+d[col]));
-  if (sf) data = data.filter(d => d.Sektor === sf);
-  
-  let vals = data.map(d => +d[col]);
-  if (!vals.length) return;
-
-  // STATISTISCHE BERECHNUNG DER AUSREISSER (IQR Methode)
-  const sortedVals = [...vals].sort((a,b) => a-b);
-  const q1 = sortedVals[Math.floor(sortedVals.length * 0.25)];
-  const q3 = sortedVals[Math.floor(sortedVals.length * 0.75)];
-  const iqr = q3 - q1;
-  const lowerBound = q1 - 1.5 * iqr;
-  const upperBound = q3 + 1.5 * iqr;
-
-  // Filter anwenden, falls Ausreißer standardmäßig ausgeschlossen werden sollen
-  if (!showOutliers && iqr > 0) {
-    data = data.filter(d => +d[col] >= lowerBound && +d[col] <= upperBound);
-    vals = data.map(d => +d[col]);
-  }
-
-  const sorted_sv = [...vals].sort((a,b) => a-b);
-  const med = sorted_sv[Math.floor(sorted_sv.length / 2)];
-
-  const cnv = document.getElementById('dotC');
-  const ctx = cnv.getContext('2d');
-  const W = cnv.parentElement.offsetWidth || 550, H = 300;
-  cnv.width = W; cnv.height = H;
-  
-  ctx.fillStyle = cv('--bg2') || '#0b1326'; ctx.fillRect(0,0,W,H);
-  
-  const P = { t: 30, r: 25, b: 40, l: 55 };
-  const pw = W - P.l - P.r, ph = H - P.t - P.b;
-  
-  const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
-  const yMn = mn - rng * 0.08, yMx = mx + rng * 0.08;
-  const ySc = v => P.t + ph - ((v - yMn) / (yMx - yMn)) * ph;
-
-  // Y-Achsen Rasterlinien zeichnen
-  for (let g = 0; g <= 5; g++) {
-    const v = yMn + (yMx - yMn) * g / 5, y = ySc(v);
-    ctx.strokeStyle = cv('--brd') || '#16294a'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(P.l+pw, y); ctx.stroke();
-    ctx.fillStyle = cv('--tx3') || '#6c8ec7'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'right';
-    ctx.fillText(fDE(v, 1), P.l - 6, y + 3);
-  }
-
-  // Cluster Punkte zeichnen
-  const sorted = [...data].sort((a,b) => +a[col] - +b[col]);
-  sorted.forEach((d, i) => {
-    const x = P.l + (i / Math.max(sorted.length - 1, 1)) * pw;
-    const y = ySc(+d[col]);
-    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.6)'; ctx.fill();
+  ctx.closePath();ctx.fillStyle=scCol+'30';ctx.fill();
+  ctx.strokeStyle=scCol;ctx.lineWidth=2.5;ctx.stroke();
+  vals.forEach((v,i)=>{
+    const a=(i/N)*Math.PI*2-Math.PI/2,r=R*v/100;
+    ctx.beginPath();ctx.arc(cx+r*Math.cos(a),cy+r*Math.sin(a),5,0,Math.PI*2);
+    ctx.fillStyle=scCol;ctx.fill();ctx.strokeStyle=bgC;ctx.lineWidth=1.5;ctx.stroke();
   });
-
-  // NUR DIE STATISTISCHE MEDIAN-LINIE ZEICHNEN (DURCHSCHNITT WURDE ENTFERNT)
-  if (!isNaN(med)) {
-    const yM = ySc(med);
-    ctx.strokeStyle = varColor = cv('--pos') || '#10b981'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(P.l, yM); ctx.lineTo(P.l+pw, yM); ctx.stroke();
-    ctx.fillStyle = varColor; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left';
-    ctx.fillText('MEDIAN: ' + fDE(med, 1), P.l + 8, yM - 6);
-  }
-}
-
-// ============================================================
-// RISK-RETURN SCATTERPLOT MATRIX WIDGET
-// ============================================================
-function renderSC() {
-  const sf = document.getElementById('sc-sf').value;
-  const kMax = +document.getElementById('sc-kgv-max').value || 60;
-  const eMin = +document.getElementById('sc-eps-min').value || -10;
-  
-  let data = SD.filter(d => d.KGV_Forward > 0 && d.KGV_Forward <= kMax && d.EPS_naechste_5J_Pct >= eMin);
-  if (sf) data = data.filter(d => d.Sektor === sf);
-  
-  const cnv = document.getElementById('scC');
-  const ctx = cnv.getContext('2d');
-  const W = cnv.parentElement.offsetWidth || 1100, H = 340;
-  cnv.width = W; cnv.height = H;
-  ctx.fillStyle = cv('--bg2') || '#0b1326'; ctx.fillRect(0,0,W,H);
-  
-  const P = { t: 25, r: 25, b: 45, l: 55 };
-  const pw = W - P.l - P.r, ph = H - P.t - P.b;
-  
-  const xSc = v => P.l + ((v - 0) / kMax) * pw;
-  const ySc = v => P.t + ph - ((v - eMin) / (60 - eMin)) * ph;
-
-  // Grid
-  ctx.strokeStyle = cv('--brd') || '#16294a'; ctx.lineWidth = 1;
-  for(let x=10; x<=kMax; x+=10) {
-    ctx.beginPath(); ctx.moveTo(xSc(x), P.t); ctx.lineTo(xSc(x), P.t+ph); ctx.stroke();
-    ctx.fillStyle = cv('--tx3'); ctx.font = '10px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillText('KGV '+x, xSc(x), P.t+ph+14);
-  }
-  for(let y=0; y<=60; y+=15) {
-    if(y < eMin) continue;
-    ctx.beginPath(); ctx.moveTo(P.l, ySc(y)); ctx.lineTo(P.l+pw, ySc(y)); ctx.stroke();
-    ctx.fillStyle = cv('--tx3'); ctx.font = '10px Segoe UI'; ctx.textAlign = 'right';
-    ctx.fillText(y+'%', P.l-6, ySc(y)+3);
-  }
-
-  data.forEach(d => {
-    const cx_ = xSc(d.KGV_Forward), cy_ = ySc(d.EPS_naechste_5J_Pct);
-    ctx.beginPath(); ctx.arc(cx_, cy_, 5, 0, Math.PI*2);
-    ctx.fillStyle = d.Score >= 70 ? 'var(--pos)' : (d.Score < 45 ? 'var(--neg)' : 'var(--ac)');
-    ctx.fill();
-    ctx.fillStyle = cv('--tx'); ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillText(d.Ticker, cx_, cy_ - 8);
+  lbls.forEach((lb,i)=>{
+    const a=(i/N)*Math.PI*2-Math.PI/2,lR=R+36;
+    const lx=cx+lR*Math.cos(a),ly=cy+lR*Math.sin(a);
+    ctx.fillStyle=txC;ctx.font='bold 10px Segoe UI,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(lb,lx,ly-8);ctx.fillStyle=scCol;ctx.font='9px Segoe UI,sans-serif';
+    ctx.fillText(fDE(vals[i],0)+'/100',lx,ly+7);
   });
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle=scCol;ctx.font=`bold 30px Segoe UI,sans-serif`;
+  ctx.fillText(sc.toString(),cx,cy-10);
+  ctx.fillStyle=tx4C;ctx.font='11px Segoe UI,sans-serif';
+  ctx.fillText('Score',cx,cy+12);
 }
 
-// ============================================================
-// TABLE RENDER PATTERNS
-// ============================================================
-function getRowQS(r) {
-  return `<tr>
-    <td>#${r.Rang || '–'}</td>
-    <td><span class="ticker-link" onclick="loadRadar('${r.Ticker}')">${r.Ticker}</span></td>
-    <td style="max-width:180px; overflow:hidden; text-transform:ellipsis;">${r.Unternehmen}</td>
-    <td>${r.Sektor}</td>
-    <td>${fDE(r.Marktkapitalisierung_Mrd, 1, ' Mrd.')}</td>
-    <td>${fDE(r.KGV_Forward, 1)}</td>
-    <td class="${r.EPS_naechste_5J_Pct >= 0 ? 'td-pos' : 'td-neg'}">${fP(r.EPS_naechste_5J_Pct)}</td>
-    <td>${fDE(r.PEG, 2)}</td>
-    <td>${getRecBadge(r.Analyst_Empfehlung)}</td>
-    <td class="${r.Gewinnmarge_Pct >= 0 ? 'td-pos' : 'td-neg'}">${fP(r.Gewinnmarge_Pct)}</td>
-    <td class="${r.Analyst_Upside_Pct >= 0 ? 'td-pos' : 'td-neg'}">${sgn(r.Analyst_Upside_Pct)}</td>
-    <td style="font-weight:800; color:var(--ac);">${fDE(r.Score, 1)}</td>
-  </tr>`;
-}
-
-function getRowWL(r) {
-  return `<tr>
-    <td><span class="ticker-link" onclick="loadRadar('${r.Ticker}')">${r.Ticker}</span></td>
-    <td>${r.Unternehmen}</td>
-    <td>${r.Sektor}</td>
-    <td>${fM(r.Marktkapitalisierung_Mrd)}</td>
-    <td>${fDE(r.KGV, 1)}</td>
-    <td>${fDE(r.KGV_Forward, 1)}</td>
-    <td class="${r.EPS_naechste_5J_Pct >= 0 ? 'td-pos' : 'td-neg'}">${fP(r.EPS_naechste_5J_Pct)}</td>
-    <td>${fDE(r.PEG, 2)}</td>
-    <td>${getRecBadge(r.Analyst_Empfehlung)}</td>
-    <td class="${r.Gewinnmarge_Pct >= 0 ? 'td-pos' : 'td-neg'}">${fP(r.Gewinnmarge_Pct)}</td>
-  </tr>`;
-}
-
-// ============================================================
-// INPUT FILTER HANDLERS (WITH NA TOLERANCE)
-// ============================================================
-function getFilteredQSData() {
-  const f1 = document.getElementById('f1').value; // Max KGV Fwd
-  const f2 = document.getElementById('f2').value; // Min Mkt Cap
-  const f3 = document.getElementById('f3').value; // Min EPS
-  const f4 = document.getElementById('f4').value; // Max PEG
-  const f6 = document.getElementById('f6').value; // Min Marge
-
-  return QS_DATA.filter(d => {
-    // Falls ein Feld NA ('') ist, wird es für den Filter ignoriert (Toleranz-Kriterium)
-    if (f1 && d.KGV_Forward !== '' && d.KGV_Forward > +f1) return false;
-    if (f2 && d.Marktkapitalisierung_Mrd !== '' && d.Marktkapitalisierung_Mrd < +f2) return false;
-    if (f3 && d.EPS_naechste_5J_Pct !== '' && d.EPS_naechste_5J_Pct < +f3) return false;
-    if (f4 && d.PEG !== '' && d.PEG > +f4) return false;
-    if (f6 && d.Gewinnmarge_Pct !== '' && d.Gewinnmarge_Pct < +f6) return false;
-    return true;
-  });
-}
-
-const drawQS = mkTbl('tbl-qs', 'tb-qs', getFilteredQSData, getRowQS, 'Score', false);
-const drawWL = mkTbl('tbl-wl', 'tb-wl', () => SD.filter(d => WL_TICKERS.includes(d.Ticker)), getRowWL, 'Marktkapitalisierung_Mrd', false);
-
-// Event-Listener für dynamische Inputs anhängen
-['f1', 'f2', 'f3', 'f4', 'f6'].forEach(id => {
-  document.getElementById(id).addEventListener('input', drawQS);
-});
-
-function resetF() {
-  document.getElementById('f1').value = 40; document.getElementById('f2').value = '';
-  document.getElementById('f3').value = 10; document.getElementById('f4').value = '';
-  document.getElementById('f6').value = 10;
-  drawQS();
-}
-
-// ============================================================
-// SYSTEM ENTRYPOINT
-// ============================================================
-window.addEventListener('resize', () => { renderDot(); renderSC(); if(currentRadarData) _paintRadar(currentRadarData); });
-// Initiale Tabellenzeichnung
-drawQS(); drawWL(); renderDot(); renderSC();
-// Autoload erste Aktie der Watchlist für den Radarplot
-if(WL_TICKERS.length > 0) { loadRadar(WL_TICKERS[0]); }
+// START
+renderDot();
+renderSC();
 """
-    html += """</script></body></html>"""
-    return html
+
+    closing = "\n</script>\n</body>\n</html>"
+    return html + "\n<script>\n" + data_block + "\n" + js + closing
 
 # ============================================================
-# MAIN EXECUTOR
+# MAIL VERSENDEN
 # ============================================================
-if __name__ == "__main__":
-    print(f"📧 Starte Automated Corporate Finance Pipeline: {datum_de}")
+def sende_mail(html):
+    if not all([MAIL_SENDER,MAIL_PASSWORD,MAIL_RECEIVER]):
+        print("❌ Credentials fehlen"); return False
+    msg=MIMEMultipart("alternative")
+    msg["Subject"]=f"Noahs Finanzblog 📈 – {datum_de}"
+    msg["From"]=f"Noahs Finanzblog <{MAIL_SENDER}>"
+    msg["To"]=MAIL_RECEIVER
+    msg.attach(MIMEText(html,"html"))
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com",465) as s:
+            s.login(MAIL_SENDER,MAIL_PASSWORD)
+            s.sendmail(MAIL_SENDER,MAIL_RECEIVER,msg.as_string())
+        print(f"✅ Mail an {MAIL_RECEIVER}"); return True
+    except Exception as e:
+        print(f"❌ {e}"); return False
+
+# ============================================================
+# MAIN
+# ============================================================
+if __name__=="__main__":
+    print(f"📧 Starte Verarbeitung für: {datum_de}")
+    
+    # Falls main.py das Arbeitsverzeichnis verändert hat, arbeiten wir mit absoluten Pfaden
+    root_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+    abs_data_dir = os.path.join(root_dir, DATA_DIR)
+    abs_docs_dir = os.path.join(root_dir, DOCS_DIR)
+    
     df = lade_daten()
 
-    # 1. Statischen Mail-Newsletter abspeichern
-    os.makedirs(DATA_DIR, exist_ok=True)
-    mail = erstelle_mail(df)
-    with open(f"{DATA_DIR}/{today_str}_newsletter.html", "w", encoding="utf-8") as f:
-        f.write(mail)
+    # 1. Mail-HTML generieren & im Daten-Archiv sichern
+    os.makedirs(abs_data_dir, exist_ok=True)
+    mail_html = erstelle_mail(df)
+    with open(os.path.join(abs_data_dir, f"{today_str}_newsletter.html"), "w", encoding="utf-8") as f:
+        f.write(mail_html)
     print("💾 Statisches Mail-HTML im Daten-Archiv gespeichert.")
 
-    # 2. Interaktives Premium-Dashboard generieren
-    os.makedirs(DOCS_DIR, exist_ok=True)
-    dashboard_html = erstelle_dashboard(df)
-    with open(f"{DOCS_DIR}/index.html", "w", encoding="utf-8") as f:
+    # 2. Interaktives Dashboard für GitHub Pages bauen!
+    os.makedirs(abs_docs_dir, exist_ok=True)
+    dashboard_html = erstelle_dashboard(df) # <-- JETZT WIRD DAS INTERAKTIVE JS-DASHBOARD GENERIERT!
+    
+    with open(os.path.join(abs_docs_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(dashboard_html)
     print("🖥️ Interaktives Dashboard für GitHub Pages (docs/index.html) erfolgreich generiert!")
 
-    # 3. Logo-Asset Transfer-Schleife
-    os.makedirs(f"{DOCS_DIR}/assets", exist_ok=True)
-    logo_src = "assets/logo.png"
-    logo_dst = f"{DOCS_DIR}/assets/logo.png"
+    # 3. Logo in docs/assets/ kopieren
+    os.makedirs(os.path.join(abs_docs_dir, "assets"), exist_ok=True)
+    logo_src = os.path.join(root_dir, "assets", "logo.png")
+    logo_dst = os.path.join(abs_docs_dir, "assets", "logo.png")
     
     if os.path.exists(logo_src):
         shutil.copy2(logo_src, logo_dst)
-        print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopiert.")
+        print("🖼️ Logo erfolgreich nach docs/assets/logo.png kopieren.")
     else:
-        logo_root_src = "logo.png"
+        # Falls das Logo direkt im Hauptverzeichnis liegt
+        logo_root_src = os.path.join(root_dir, "logo.png")
         if os.path.exists(logo_root_src):
             shutil.copy2(logo_root_src, logo_dst)
             print("🖼️ Logo aus Root erfolgreich nach docs/assets/logo.png kopiert.")
         else:
-            print("⚠️ Warnung: logo.png wurde in keinem Verzeichnis detektiert.")
+            print("⚠️ Hinweis: logo.png wurde weder im Hauptverzeichnis noch in /assets gefunden.")
 
-    # 4. Automatisierter SMTP SSL Versand
-    if MAIL_SENDER and MAIL_PASSWORD and MAIL_RECEIVER:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Noahs Finanzblog 📈 – {datum_de}"
-        msg["From"]    = f"Noahs Finanzblog <{MAIL_SENDER}>"
-        msg["To"]      = MAIL_RECEIVER
-        msg.attach(MIMEText(mail, "html"))
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
-                s.login(MAIL_SENDER, MAIL_PASSWORD)
-                s.sendmail(MAIL_SENDER, MAIL_RECEIVER, msg.as_string())
-            print(f"✅ Mail erfolgreich an {MAIL_RECEIVER} verschickt.")
-        except Exception as e:
-            print(f"❌ Fehler beim SMTP-Versand: {e}")
+    # 4. Newsletter-E-Mail absenden
+    sende_erfolgreich = sende_mail(mail_html)
+    if sende_erfolgreich:
+        print("🚀 Mail-Versand erfolgreich abgeschlossen.")
     else:
-        print("ℹ️ SMTP-Mailing übersprungen (Fehlende Environment Variables).")
+        print("❌ Mail-Versand fehlgeschlagen.")
