@@ -46,17 +46,23 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Erst den neuesten Stand holen, um Konflikte zu vermeiden
+          # 1. Lokale Änderungen sicher stashen (inkl. neuer, untrackter Files)
+          git stash --include-untracked
+          
+          # 2. Remote-Updates holen und lokal draufrebasen
           git pull --rebase origin main
           
-          # Alle modifizierten Verzeichnisse tracken (inkl. Assets für das Logo falls außerhalb von docs/)
+          # 3. Die frisch generierten Dateien wieder zurückholen
+          git stash pop || echo "Kein Stash zum Zurückspielen vorhanden oder Konflikt automatisch gelöst"
+          
+          # 4. Alle modifizierten Verzeichnisse tracken
           git add data/ docs/
           if [ -d "assets" ]; then git add assets/; fi
           
-          # Nur committen, wenn sich in data/, docs/ oder assets/ wirklich etwas verändert hat
+          # 5. Nur committen wenn sich wirklich etwas verändert hat
           if ! git diff --cached --quiet; then
             git commit -m "Daily update: $(date +'%Y-%m-%d') [skip ci]"
             git push origin main
           else
-            echo "Keine neuen Daten oder Dashboard-Änderungen (KGV) festgestellt."
+            echo "Keine neuen Daten oder Dashboard-Änderungen festgestellt."
           fi
