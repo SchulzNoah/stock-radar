@@ -10,6 +10,10 @@ jobs:
   run-pipeline:
     runs-on: ubuntu-latest
     timeout-minutes: 360 # Großzügiges Limit für Scraping & Berechnungen
+    
+    # Erlaubt dem github-actions[bot] das Schreiben im Repo
+    permissions:
+      contents: write
 
     steps:
       - name: Repository auschecken
@@ -46,6 +50,11 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Speicher-Optimierung gegen speicherintensive Git-Abstürze (SIGKILL)
+          git config --global pack.windowMemory "100m"
+          git config --global pack.packSizeLimit "100m"
+          git config --global core.bigFileThreshold "50m"
+          
           # 1. Lokale Änderungen sicher stashen (inkl. neuer, untrackter Files)
           git stash --include-untracked
           
@@ -54,6 +63,16 @@ jobs:
           
           # 3. Die frisch generierten Dateien wieder zurückholen
           git stash pop || echo "Kein Stash zum Zurückspielen vorhanden oder Konflikt automatisch gelöst"
+          
+          # AUTOMATISCHER CLEANUP ALTER DATENSÄTZE IN "data/"
+          # Behält die 3 neuesten Dateien im data/-Ordner und löscht alle älteren aus Git.
+          if [ -d "data" ]; then
+            echo "🧹 Starte Bereinigung alter Datensätze..."
+            ls -1tr data/* 2>/dev/null | head -n -3 | while read -r alte_datei; do
+              echo "🗑️ Lösche alte Datei aus Git: $alte_datei"
+              git rm -f "$alte_datei"
+            done
+          fi
           
           # 4. Alle modifizierten Verzeichnisse tracken
           git add data/ docs/
