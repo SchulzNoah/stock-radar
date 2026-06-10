@@ -7,7 +7,7 @@ jobs:
   test-run:
     runs-on: ubuntu-latest
     
-    # DIESER BLOCK FEHLTE: Erlaubt dem github-actions[bot] das Schreiben im Repo
+    # Erlaubt dem github-actions[bot] das Schreiben im Repo
     permissions:
       contents: write
 
@@ -28,14 +28,19 @@ jobs:
           MAIL_SENDER:   ${{ secrets.MAIL_SENDER }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           MAIL_RECEIVER: ${{ secrets.MAIL_RECEIVER }}
-        run: python newsletter.py # Führt das Skript im Testmodus aus (erzeugt Artefakte für docs/)
+        run: python newsletter.py # Führt das Skript im Testmodus aus (erzeugt Artefakte für docs/ und data/)
 
-      - name: Änderungen committen
+      - name: Änderungen committen & aufräumen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. Lokale Änderungen (Dashboard-Generierung) sicher stashen (inklusive neuer, untrackter Files)
+          # Speicher-Optimierung gegen speicherintensive Git-Abstürze (SIGKILL)
+          git config --global pack.windowMemory "100m"
+          git config --global pack.packSizeLimit "100m"
+          git config --global core.bigFileThreshold "50m"
+          
+          # 1. Lokale Änderungen (Dashboard & Testdaten) sicher stashen (inklusive untracked Files)
           git stash --include-untracked
           
           # 2. Remote-Updates holen und lokal draufrebasen
@@ -44,13 +49,23 @@ jobs:
           # 3. Das frisch generierte Dashboard und die Testdaten wieder zurückholen
           git stash pop || echo "Kein Stash zum Zurückspielen vorhanden oder Konflikt automatisch gelöst"
           
-          # 4. Jetzt erst alle Änderungen für den Commit markieren
+          # 4. AUTOMATISCHER CLEANUP ALTER DATENSÄTZE IN "data/"
+          # Behält die 3 neuesten Dateien im data/-Ordner und löscht alle älteren aus Git.
+          if [ -d "data" ]; then
+            echo "🧹 Starte Bereinigung alter Test-Datensätze..."
+            ls -1tr data/* 2>/dev/null | head -n -3 | while read -r alte_datei; do
+              echo "🗑️ Lösche alte Datei aus Git: $alte_datei"
+              git rm -f "$alte_datei"
+            done
+          fi
+          
+          # 5. Jetzt alle verbleibenden Änderungen für den Commit markieren
           git add docs/ data/
           if [ -d "assets" ]; then git add assets/; fi
           
-          # 5. Saubere Prüfung des Index vor dem Commit
+          # 6. Saubere Prüfung des Index vor dem Commit
           if ! git diff --cached --quiet; then
-            git commit -m "Test update: $(date +'%Y-%m-%d %H:%M:%S')"
+            git commit -m "Test update & cleanup: $(date +'%Y-%m-%d %H:%M:%S')"
             git push origin main
           else
             echo "Der Testlauf hat keine visuellen oder datentechnischen Änderungen erzeugt."
