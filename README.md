@@ -16,12 +16,12 @@ The entire system is fully autonomous, utilizing GitHub Actions as a serverless 
 
 The workflow is decoupled into two core Python modules, executed sequentially by the CI/CD runner:
 
-1. **`main.py` (The Extractor):**
+1. **`main.py` (Extracting & Wrangling Data):**
    * Establishes connections via configured proxy networks.
    * Executes concurrent threads to scrape daily fundamental metrics.
    * Dumps the raw output as structured CSV files into the `data/` directory.
 
-2. **`newsletter.py` (The Transformer & Publisher):**
+2. **`newsletter.py` (Analysing, Visualizing & Publishing Data):**
    * Ingests the latest raw CSV datasets.
    * Renders the updated frontend dashboard directly into the `docs/` folder for immediate hosting.
    * Formats the most critical market movements into an HTML email template and triggers the SMTP broadcast.
@@ -35,9 +35,9 @@ The workflow is decoupled into two core Python modules, executed sequentially by
 
 ## 👨‍💻 About the Author
 
-<a href="https://www.linkedin.com/in/noah-schulz-971031301/">
+**Noah Schulz | Let's connect :)** <a href="https://www.linkedin.com/in/noah-schulz-971031301/">
   <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/1280px-LinkedIn_icon.svg.png"
        alt="LinkedIn"
-       width="30">
-</a>
+       height="20">
+</a> 
 
