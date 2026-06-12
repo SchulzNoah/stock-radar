@@ -35,5 +35,5 @@ The workflow is decoupled into two core Python modules, executed sequentially by
 
 ## 👨‍💻 About the Author
 
-**Noah Schulz | Let's connect :)**[![LinkedIn](https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/1280px-LinkedIn_icon.svg.png)](https://www.linkedin.com/in/noah-schulz-971031301/)
+**Noah Schulz | Let's connect :)**[![LinkedIn](https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/32px-LinkedIn_icon.svg.png)](https://www.linkedin.com/in/noah-schulz-971031301/)
 
