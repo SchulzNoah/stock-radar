@@ -831,7 +831,6 @@ canvas { border-radius:10px; max-width:100%; display:block; }
 <div class="footer">
   Keine Anlageberatung – Dashboard erstellt von
   <a href="https://www.linkedin.com/in/noah-schulz-971031301/" target="_blank">Noah Schulz</a>
-  &nbsp;·&nbsp; Duisburg Analytica
 </div>
 
 </div><!-- /page-wrap -->
