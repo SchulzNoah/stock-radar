@@ -1,4 +1,4 @@
-# Stock Radar: Automated Corporate Finance & Analytics Pipeline
+# Stock Radar: Automated Finance & Analytics Pipeline
 
 I engineered this automated system to extract, process, and analyze fundamental financial stock metrics from the 2 major indices (**S&P 500** and **NASDAQ**). 
 
