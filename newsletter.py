@@ -628,50 +628,28 @@ canvas{border-radius:8px;max-width:100%;display:block;
     <table class="dt" id="tbl-wl">
       <thead><tr>
         <th data-col="Ticker"
-            data-tip="Börsenkürzel
-Eindeutiges Identifikationssymbol an der Börse">Ticker</th>
+            data-tip="Börsenkürzel">Ticker</th>
         <th data-col="Unternehmen"
-            data-tip="Unternehmensname
-Vollständige Firmenbezeichnung">Unternehmen</th>
+            data-tip="Unternehmensname">Unternehmen</th>
         <th data-col="Sektor"
-            data-tip="GICS-Sektor
-Brancheneinteilung nach Global Industry Classification Standard">Sektor</th>
+            data-tip="GICS-Sektor 
+            (Global Industry Classification Standard)">Sektor</th>
         <th data-col="Marktkapitalisierung_Mrd"
-            data-tip="Marktkapitalisierung (Mrd. USD)
-= Aktienkurs × ausstehende Aktien
-Maß für die Unternehmensgröße">Mkt Cap (Mrd.)</th>
+            data-tip="Marktkapitalisierung (Mrd. USD)">Mkt Cap (Mrd.)</th>
         <th data-col="Gewinn_Mrd"
-            data-tip="Netto-Jahresgewinn (Mrd. USD)
-Trailing Twelve Months (TTM)
-Tatsächlich ausgewiesener Reingewinn">Gewinn (Mrd.)</th>
+            data-tip="Netto-Jahresgewinn (Mrd. USD)">Gewinn (Mrd.)</th>
         <th data-col="KGV"
-            data-tip="Kurs-Gewinn-Verhältnis (Trailing 12M)
-= Aktienkurs ÷ EPS der letzten 12 Monate
-Niedriger Wert = günstiger bewertet (relativ)">KGV</th>
+            data-tip="Kurs-Gewinn-Verhältnis (Trailing 12M)">KGV</th>
         <th data-col="KGV_Forward"
-            data-tip="Forward KGV (vorwärtsschauend)
-= Aktienkurs ÷ geschätztem EPS nächstes Jahr
-Berücksichtigt zukünftiges Gewinnwachstum">KGV Fwd.</th>
+            data-tip="Forward KGV">KGV Fwd.</th>
         <th data-col="EPS_naechste_5J_Pct"
-            data-tip="EPS-Wachstum nächste 5 Jahre (%)
-Analystenkonsens für jährliches Gewinnwachstum
-Schlüsselmetrik für Growth-Investoren">EPS 5J %</th>
+            data-tip="EPS-Wachstum nächste 5 Jahre (%)">EPS 5J %</th>
         <th data-col="PEG"
-            data-tip="Price/Earnings to Growth Ratio
-= KGV ÷ EPS-Wachstumsrate
-PEG &lt; 1 → potentiell unterbewertet
-PEG &gt; 2 → möglicherweise zu teuer">PEG</th>
+            data-tip="Price/Earnings to Growth Ratio">PEG</th>
         <th data-col="Analyst_Empfehlung"
-            data-tip="Analystenkonsens-Rating
-1,0 = Strong Buy (leuchtend grün)
-2,0 = Buy
-3,0 = Hold
-4,0 = Sell
-5,0 = Strong Sell (rot)">Analyst (1–5)</th>
+            data-tip="Analystenkonsens-Rating">Analyst (1–5)</th>
         <th data-col="Gewinnmarge_Pct"
-            data-tip="Nettogewinnmarge (%)
-= Nettoeinkommen ÷ Umsatz × 100
-Hohe Marge → starkes, skalierbares Geschäftsmodell">Gewinnmarge</th>
+            data-tip="Nettogewinnmarge (%)</th>
       </tr></thead>
       <tbody id="tb-wl"></tbody>
     </table>
@@ -709,29 +687,21 @@ Hohe Marge → starkes, skalierbares Geschäftsmodell">Gewinnmarge</th>
         <th data-col="Sektor"
             data-tip="GICS-Sektor">Sektor</th>
         <th data-col="Marktkapitalisierung_Mrd"
-            data-tip="Marktkapitalisierung (Mrd. USD)
-= Aktienkurs × ausstehende Aktien">Mkt Cap</th>
+            data-tip="Marktkapitalisierung (Mrd. USD)">Mkt Cap</th>
         <th data-col="KGV_Forward"
-            data-tip="Forward KGV
-= Kurs ÷ geschätztem EPS nächstes Jahr
-Niedriger Wert = günstiger bewertet">KGV Fwd.</th>
+            data-tip="Forward KGV">KGV Fwd.</th>
         <th data-col="EPS_naechste_5J_Pct"
-            data-tip="EPS-Wachstum nächste 5 Jahre (%)
-Analystenkonsens jährliches Gewinnwachstum">EPS 5J %</th>
+            data-tip="EPS-Wachstum nächste 5 Jahre (%)">EPS 5J %</th>
         <th data-col="Gewinnmarge_Pct"
-            data-tip="Nettogewinnmarge (%)
-= Nettoeinkommen ÷ Umsatz × 100">Gewinnmarge</th>
+            data-tip="Nettogewinnmarge (%)</th>
         <th data-col="PEG"
-            data-tip="Price/Earnings to Growth
-= KGV ÷ EPS-Wachstum
-PEG &lt; 1 → potentiell unterbewertet">PEG</th>
+            data-tip="Price/Earnings to Growth">PEG</th>
         <th data-col="Analyst_Empfehlung"
             data-tip="Analystenkonsens-Rating
-1,0 = Strong Buy · 5,0 = Strong Sell">Analyst (1–5)</th>
+1,0 = Strong Buy 
+5,0 = Strong Sell">Analyst (1–5)</th>
         <th data-col="Analyst_Upside_Pct"
-            data-tip="Kurspotenzial (%)
-= (Analystenkursziel − Kurs) ÷ Kurs × 100
-Positiv = Kurspotenzial bis zum Zielkurs">Upside %</th>
+            data-tip="Kurspotenzial (%)">Upside %</th>
       </tr></thead>
       <tbody id="tb-qs"></tbody>
     </table>
