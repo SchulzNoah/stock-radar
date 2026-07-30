@@ -1,0 +1,42 @@
+name: Manueller Scraper-Lauf
+
+# workflow_dispatch ermöglicht das manuelle Starten per Knopfdruck in GitHub
+on:
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Quellcode aus dem Repository auschecken
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      # 2. Python-Umgebung aufsetzen
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Benötigte Bibliotheken installieren
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests python-dotenv finvizfinance
+
+      # 4. Scraper-Skript mit Secrets ausführen
+      - name: main.py ausführen
+        env:
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+        run: |
+          python main.py
+
+      # 5. Generierte Daten als Artifact herunterladbar machen
+      - name: CSV-Ergebnisse speichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-csv-data
+          path: data/*.csv
