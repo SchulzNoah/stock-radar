@@ -14,8 +14,6 @@ import requests
 from dotenv import load_dotenv
 from finvizfinance.quote import finvizfinance
 
-# 1. Lokale .env-Datei laden
-load_dotenv()
 
 # --- KONFIGURATION ---
 WORKING_DIR = "data"
