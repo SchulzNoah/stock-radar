@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from urllib.parse import quote
  
 # --- KONFIGURATION ---
 WORKING_DIR   = "data"
@@ -27,17 +28,25 @@ counter      = {"done": 0, "success": 0, "failed": 0}
 # --- PROXY SETUP ---
  
 def get_proxy() -> dict:
-    username = os.environ.get("PROXY_USERNAME", "")
-    password = os.environ.get("PROXY_PASSWORD", "")
- 
-    if not username or not password:
-        print("⚠️ Keine Proxy-Credentials gefunden → ohne Proxy")
-        return {}
- 
-    proxy_url = f"http://{username}:{password}@p.webshare.io:80"
-    print(f"🔀 Proxy aktiv: p.webshare.io:80")
+    host = os.environ.get("PROXY_HOST", "p.webshare.io").strip()
+    port = os.environ.get("PROXY_PORT", "80").strip()
+    username = os.environ.get("PROXY_USERNAME", "").strip()
+    password = os.environ.get("PROXY_PASSWORD", "").strip()
+
+    if not all([host, port, username, password]):
+        raise RuntimeError(
+            "Proxy-Konfiguration unvollständig. "
+            "PROXY_HOST, PROXY_PORT, PROXY_USERNAME und PROXY_PASSWORD prüfen."
+        )
+
+    proxy_url = (
+        f"http://{quote(username, safe='')}:{quote(password, safe='')}"
+        f"@{host}:{port}"
+    )
+
+    print(f"🔀 Proxy konfiguriert: {host}:{port}")
     return {
-        "http":  proxy_url,
+        "http": proxy_url,
         "https": proxy_url,
     }
  
@@ -57,9 +66,26 @@ if PROXY:
 
 
 def preflight() -> None:
-    """Prüft vor dem Massendownload, ob FINVIZ tatsächlich Daten liefert."""
-    print("🔎 Preflight: teste FINVIZ mit AAPL …")
+    """Prüft zuerst den Proxy und danach einen einzelnen FINVIZ-Abruf."""
     try:
+        print("🔎 Preflight 1/2: teste Proxy-Verbindung …")
+        response = requests.get(
+            "https://api.ipify.org?format=json",
+            proxies=PROXY,
+            timeout=20,
+        )
+        response.raise_for_status()
+        print("✅ Proxy-Verbindung erfolgreich.")
+    except requests.exceptions.ProxyError as exc:
+        raise RuntimeError(
+            "Proxy-Authentifizierung fehlgeschlagen (407). "
+            "Prüfe Host, Port, Benutzername und Passwort in den GitHub Secrets."
+        ) from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Proxy-Verbindung fehlgeschlagen: {exc}") from exc
+
+    try:
+        print("🔎 Preflight 2/2: teste FINVIZ mit AAPL …")
         data = finvizfinance("AAPL").ticker_fundament()
     except Exception as exc:
         raise RuntimeError(f"FINVIZ-Preflight fehlgeschlagen: {exc}") from exc
@@ -70,7 +96,7 @@ def preflight() -> None:
             "Keine gültigen Fundamentaldaten für AAPL erhalten."
         )
 
-    print(f"✅ Preflight erfolgreich: {data['Company']}")
+    print(f"✅ FINVIZ-Preflight erfolgreich: {data['Company']}")
  
 # --- TICKER RETRIEVAL ---
  
