@@ -54,6 +54,23 @@ PROXY = get_proxy()
 if PROXY:
     set_proxy(PROXY)
     print("✅ Proxy erfolgreich in finvizfinance registriert (set_proxy).")
+
+
+def preflight() -> None:
+    """Prüft vor dem Massendownload, ob FINVIZ tatsächlich Daten liefert."""
+    print("🔎 Preflight: teste FINVIZ mit AAPL …")
+    try:
+        data = finvizfinance("AAPL").ticker_fundament()
+    except Exception as exc:
+        raise RuntimeError(f"FINVIZ-Preflight fehlgeschlagen: {exc}") from exc
+
+    if not data or "Company" not in data:
+        raise RuntimeError(
+            "FINVIZ-Preflight fehlgeschlagen: "
+            "Keine gültigen Fundamentaldaten für AAPL erhalten."
+        )
+
+    print(f"✅ Preflight erfolgreich: {data['Company']}")
  
 # --- TICKER RETRIEVAL ---
  
@@ -227,6 +244,7 @@ def fetch_and_save_fundamentals(tickers: List[str], base_name: str):
 # --- MAIN ---
  
 if __name__ == "__main__":
+    preflight()
     start = time.time()
     sp500_list  = get_sp500_tickers()
     nasdaq_list = get_nasdaq_tickers()
